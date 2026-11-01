@@ -1,0 +1,21 @@
+[Unit]
+Description=Matrix TF-C2 LED display web control
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/tf-c2-web
+ExecStart=%h/tf-c2-web/.venv/bin/python %h/tf-c2-web/server.py
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=-%h/tf-c2-web/config.env
+Restart=on-failure
+RestartSec=3
+UMask=0077
+NoNewPrivileges=true
+TimeoutStopSec=45
+StandardOutput=append:%h/tf-c2-web/data/service.log
+StandardError=append:%h/tf-c2-web/data/service.log
+
+[Install]
+WantedBy=default.target

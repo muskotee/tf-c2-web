@@ -1,0 +1,10 @@
+.venv/
+node_modules/
+__pycache__/
+data/
+get-pip.py
+config.env
+*.zip
+*.tar.gz
+*.png
+image-capture.jsonl
