@@ -1,7 +1,7 @@
 """Native TF-C2 clocks: no per-second program/flash uploads.
 
 Templates captured from PowerLED 2.89.4 for this exact TF-C2 firmware.
-The controller draws the clock from its RTC, including custom digit bitmaps.
+Only the built-in clock font is enabled after physical display verification.
 """
 import datetime as dt
 import math
@@ -12,9 +12,10 @@ from PIL import Image, ImageDraw, ImageFont
 import display
 
 ROOT = Path(__file__).resolve().parent / 'clock-templates'
-STYLES = {'digital': 'Digital · klassisch', 'segment': 'Börsentafel · Segmentziffern',
+STYLES = {'digital': 'Digital · klassisch', 'segment': 'Börsentafel · gerahmt',
           'binary': 'Binär · BCD-Punkte', 'arcade': 'Arcade · Pac-Man-Ziffern',
           'analog': 'Bahnhof · analog + digital', 'world': 'Weltzeit · zwei Städte'}
+SUPPORTED_STYLES = ('digital', 'segment', 'analog', 'world')
 ZONES = {'Europe/Berlin': 'Berlin', 'Europe/London': 'London', 'UTC': 'UTC',
          'America/New_York': 'New York', 'Asia/Tokyo': 'Tokio'}
 DEFAULT = {'enabled': False, 'style': 'digital', 'content': 'both',
@@ -26,6 +27,8 @@ def options(value):
     opt = {k: value.get(k, v) for k, v in DEFAULT.items()}
     if opt['style'] not in STYLES or opt['content'] not in ('time', 'both', 'date'):
         raise ValueError('Unbekannte Uhrdarstellung.')
+    if opt['style'] not in SUPPORTED_STYLES:
+        raise ValueError('Diese Uhr benötigt eingebettete Schriften, die auf diesem Controller schwarz bleiben. Bitte Digital, Börsentafel, Bahnhof oder Weltzeit wählen.')
     if opt['color'] not in display.COLORS or opt['accent'] not in display.COLORS:
         raise ValueError('Ungültige Uhrfarbe.')
     if opt['date_format'] not in ('de','iso','short'):
@@ -172,15 +175,24 @@ def compile_program(value, instant=None):
     opt=options(value)
     kind = opt['style'] if opt['style'] in ('analog','world') else ('compact' if opt['content']=='both' else 'date' if opt['content']=='date' else 'digital')
     program=bytearray((ROOT/(kind+'.bin')).read_bytes())
-    base=font_base(program);stylize(program,base,opt['style'])
+    # On this physical TF-C2 the unmodified captured custom-font program is
+    # black, while the captured built-in font 0 clock is visible and ticking.
+    # Use the proven ROM font and omit the unsupported appended font resource.
+    program=program[:font_base(program)]
+    struct.pack_into('<I', program, 72, 0)  # no appended font-resource directory
     for index,(_,page,x,y,w,h) in enumerate(windows(program)):
         if program[page+7]==11:
-            for field in (15,16,17):program[page+field]=(program[page+field]&15)|(palette(opt['color'])<<4)
+            program[page+8] &= 15  # built-in font 0, preserve date/time flags
+            program[page+16] = (program[page+16]&0xf0)|1
+            for flag,field in ((2,15),(4,16),(8,17)):
+                if program[page+8]&flag:
+                    program[page+field]=(program[page+field]&15)|(palette(opt['color'])<<4)
             # Native format enum from PowerLED's date-format string table:
             # 1 YYYY-MM-DD, 4 YY-MM-DD, 11 DD.MM.YYYY.
-            program[page+15]=(program[page+15]&0xf0)|{'de':11,'iso':1,'short':4}[opt['date_format']]
             if program[page+8]&2:
-                program[page+9]=max(0,(w-text_mask(program,base,date_text(opt,now(opt,instant))).width)//2)
+                program[page+15]=(program[page+15]&0xf0)|{'de':11,'iso':1,'short':4}[opt['date_format']]
+                program[page+9]=max(0,(w-len(date_text(opt,now(opt,instant)))*6)//2)
+            program[page+11]=max(0,(w-48)//2)
         else:
             program[page+15]=program[page+16]=palette(opt['color']);program[page+17]=palette(opt['accent'])
             image=unpack_raster(program,page,w,h)
@@ -208,7 +220,7 @@ def text_mask(program,base,text):
 
 
 def preview(value, instant=None):
-    program,opt=compile_program(value,instant);base=font_base(program);local=now(opt,instant)
+    program,opt=compile_program(value,instant);local=now(opt,instant)
     canvas=Image.new('RGB',(128,32))
     for index,(_,page,x,y,w,h) in enumerate(windows(program)):
         area=unpack_raster(program,page,w,h)
@@ -220,7 +232,12 @@ def preview(value, instant=None):
             current=local.astimezone(ZoneInfo(opt['second_timezone'])) if opt['style']=='world' and index else local
             strings=([date_text(opt,current), current.strftime('%H:%M:%S')] if opt['content']=='both'
                      else [date_text(opt,current) if opt['content']=='date' else current.strftime('%H:%M:%S')])
-            masks=[text_mask(program,base,s) for s in strings]
+            # Schematic ROM-font preview: firmware draws its own built-in font.
+            font=ImageFont.truetype('/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf',10)
+            masks=[]
+            for text in strings:
+                mask=Image.new('L',(len(text)*6,12));draw=ImageDraw.Draw(mask)
+                draw.text((0,0),text,font=font,fill=255);masks.append(mask)
             top=max(0,(h-sum(mask.height for mask in masks))//2)
             for mask in masks:
                 left=max(0,(w-mask.width)//2)

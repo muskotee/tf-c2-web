@@ -9,28 +9,42 @@ import server
 
 
 class ClockTests(unittest.TestCase):
+    def test_old_active_clock_is_migrated_to_compatible_renderer(self):
+        saved={'clock':{'enabled':True,'style':'binary','content':'time'},'clock_previous':{'last':{'source':'timeline'}}}
+        with mock.patch.object(server,'setting',side_effect=lambda k,d=None:saved.get(k,d)),mock.patch.object(server,'save_setting',side_effect=lambda k,v:saved.__setitem__(k,v)),mock.patch.object(threading.Thread,'start'):
+            control=server.Controller()
+            _,kind,value=control.jobs.get_nowait()
+            self.assertEqual(kind,'clock')
+            self.assertEqual(value['style'],'digital')
+            self.assertFalse(saved['clock']['enabled'])
+            self.assertEqual(saved['clock_previous']['last']['source'],'timeline')
+
+    def test_digital_program_matches_visibly_working_powerled_capture(self):
+        program,_=clocks.compile_program({'style':'digital','content':'time','color':'red'})
+        self.assertEqual(program,(clocks.ROOT/'standard.bin').read_bytes())
+
     def test_all_styles_and_contents_compile_with_native_clock_headers(self):
-        for style in clocks.STYLES:
+        for style in clocks.SUPPORTED_STYLES:
             for content in ('time','both','date'):
                 with self.subTest(style=style,content=content):
                     program,opt=clocks.compile_program({'style':style,'content':content})
                     windows=clocks.windows(program)
                     self.assertTrue(windows)
                     self.assertTrue(all(program[p+7] in (10,11) for _,p,*_ in windows))
-                    base=clocks.font_base(program)
-                    self.assertEqual(program[base:base+4],bytes.fromhex('050aa55a'))
+                    end=max(p+24+((w+31)//32)*4*h*3 for _,p,_,_,w,h in windows)
+                    self.assertEqual(len(program),end)
+                    for _,p,*_ in windows:
+                        if program[p+7]==11:
+                            self.assertEqual(program[p+8]>>4,0)
+                            self.assertEqual(program[p+16]&15,1)
                     image,_=clocks.preview(opt)
                     self.assertEqual(image.size,(128,32))
                     self.assertIsNotNone(image.getbbox())
 
-    def test_native_fonts_change_pixels_without_moving_any_pointers(self):
-        reference,_=clocks.compile_program({'style':'digital','content':'time'})
-        for style in ('segment','binary','arcade'):
-            program,_=clocks.compile_program({'style':style,'content':'time'})
-            base=clocks.font_base(program)
-            self.assertEqual(len(program),len(reference))
-            self.assertEqual(program[base:base+1064],reference[base:base+1064])
-            self.assertNotEqual(clocks.glyph(program,base,'9').tobytes(),clocks.glyph(reference,base,'9').tobytes())
+    def test_embedded_font_styles_are_rejected_instead_of_displaying_black(self):
+        for style in ('binary','arcade'):
+            with self.assertRaisesRegex(ValueError,'eingebettete Schriften'):
+                clocks.compile_program({'style':style})
 
     def test_local_rtc_payload_and_dst(self):
         instant=dt.datetime(2026,7,1,12,0,tzinfo=dt.timezone.utc)
@@ -56,10 +70,10 @@ class ClockTests(unittest.TestCase):
         instant=dt.datetime(2026,11,1,12,tzinfo=dt.timezone.utc)
         for fmt,code,text in (('de',11,'01.11.2026'),('iso',1,'2026-11-01'),('short',4,'26-11-01')):
             program,opt=clocks.compile_program({'content':'date','date_format':fmt},instant)
-            page=clocks.windows(program)[0][1];base=clocks.font_base(program)
+            page=clocks.windows(program)[0][1]
             self.assertEqual(program[page+15]&15,code)
             self.assertEqual(clocks.date_text(opt,clocks.now(opt,instant)),text)
-            self.assertEqual(program[page+9],(128-clocks.text_mask(program,base,text).width)//2)
+            self.assertEqual(program[page+9],(128-len(text)*6)//2)
 
     def test_sync_only_sends_captured_rtc_command(self):
         with mock.patch.object(display,'serial_port') as port,mock.patch.object(display,'probe_fd',return_value={'connected':True}),mock.patch.object(display,'exchange',return_value=bytes.fromhex('0c000a000000010000051c00')) as exchange:

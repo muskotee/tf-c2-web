@@ -1,5 +1,16 @@
 # Native Uhrvorlagen
 
+**Kompatibilitätsbefund vom Display:** Die unveränderte PowerLED-Standarduhr mit
+eingebauter Schrift ist sichtbar und läuft. Schon die unveränderte Vorlage mit
+angehängter benutzerdefinierter Schrift bleibt schwarz. Die erfolgreiche
+Paketbestätigung prüft dies nicht. Ab 1.1.1 werden deshalb nur die eingebauten
+Uhrschriften verwendet; angehängte Schriftblöcke werden vor dem Upload entfernt.
+Binär- und Arcade-Ziffern sind gesperrt. Die Dateien bleiben Erfassungsreferenzen.
+`standard.bin` ist die vom Nutzer als sichtbar/laufend bestätigte rote Standarduhr.
+Der digitale Kompatibilitäts-Upload wird bytegenau dagegen getestet. Beim Entfernen
+angehängter Schriften muss zusätzlich der Schriftverweis bei Offset 72 auf null
+gesetzt werden; ein verbleibender Verweis zeigt hinter das verkürzte Programm.
+
 Aus PowerLED 2.89.4 erfasste Programmstrukturen für TF-C2 V6 / Firmware 0.5.9.
 Die Erfassung erfolgte über eine UDP-Antwortsimulation ohne serielle Schreibzugriffe.
 Die Anwendung passt Farben, Datumsformat, Ziffernbitmaps und Weltzeitversatz an.

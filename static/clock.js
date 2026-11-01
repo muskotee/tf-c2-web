@@ -1,7 +1,7 @@
 'use strict';
 (() => {
   let filled=false, dirty=false, busy=false, request=0, timer, pending=false;
-  const descriptions={digital:'Klassische Uhr mit Sekunden. Große Ziffern oder kompakt mit Datum.',segment:'Leuchtende Segmentziffern und eine gerahmte Tafel – inspiriert von Börsen- und Anzeigetafeln.',binary:'BCD: Jede Dezimalziffer erhält eine Punktspalte. Von oben nach unten zählen die Zeilen 8, 4, 2 und 1. Gefüllte Punkte addieren; hohle Punkte sind aus.',arcade:'Pac-Man-Ziffern: Über jeder Ziffer frisst sich ein kleiner Held durch eine Punktleiste. Die Einer der Sekunden beginnen alle zehn Sekunden von vorn.',analog:'Eine analoge Uhr mit Stunden-, Minuten- und Sekundenzeiger, daneben die digitale Uhrzeit.',world:'Zwei Uhren nebeneinander. Die Städte und Zeitzonen wählst du selbst.'};
+  const descriptions={digital:'Klassische Uhr mit Sekunden. Eingebaute Uhrschrift, optional mit Datum.',segment:'Digitale Ziffern und eine gerahmte Tafel – inspiriert von Börsen- und Anzeigetafeln.',binary:'BCD: Jede Dezimalziffer erhält eine Punktspalte. Von oben nach unten zählen die Zeilen 8, 4, 2 und 1. Gefüllte Punkte addieren; hohle Punkte sind aus.',arcade:'Pac-Man-Ziffern: Über jeder Ziffer frisst sich ein kleiner Held durch eine Punktleiste. Die Einer der Sekunden beginnen alle zehn Sekunden von vorn.',analog:'Eine analoge Uhr mit Stunden-, Minuten- und Sekundenzeiger, daneben die digitale Uhrzeit.',world:'Zwei Uhren nebeneinander. Die Städte und Zeitzonen wählst du selbst.'};
   function value(){return {style:$('clock-style').value,content:$('clock-content').value,color:$('clock-color').value,accent:$('clock-accent').value,timezone:$('clock-timezone').value,second_timezone:$('clock-second').value,date_format:$('clock-date-format').value};}
   function controls(){
     const opt=value(),special=['analog','world'].includes(opt.style);
@@ -28,7 +28,11 @@
   $('clock-form').addEventListener('submit',async event=>{event.preventDefault();busy=true;try{await api('/api/clock/start',value());dirty=false;await poll();}catch(error){toast(error.message,true);}finally{busy=false;}});
   $('clock-stop').addEventListener('click',()=>job('/api/clock/stop'));
   window.MatrixClock={onState(next){
-    const opt=next.clock;if(!opt)return;
+    const stored=next.clock;if(!stored)return;
+    const supported=next.clock_supported_styles||['digital','segment','analog','world'];
+    const opt={...stored,style:supported.includes(stored.style)?stored.style:'digital'};
+    for(const option of $('clock-style').options)option.disabled=!supported.includes(option.value);
+    document.querySelectorAll('[data-clock-style]').forEach(button=>{button.disabled=!supported.includes(button.dataset.clockStyle);});
     if(!filled){for(const [key,id] of Object.entries({style:'clock-style',content:'clock-content',color:'clock-color',accent:'clock-accent',timezone:'clock-timezone',second_timezone:'clock-second',date_format:'clock-date-format'}))if(opt[key])$(id).value=opt[key];filled=true;controls();}
     const running=['queued','running'].includes(next.job.state);
     $('clock-start').disabled=running||busy;

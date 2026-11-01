@@ -1,5 +1,17 @@
 # Versionshinweise
 
+## 1.1.1 — 2026-11-01
+
+Korrektur für schwarze Uhranzeigen am realen TF-C2: Die vom Controller bestätigte
+Übertragung eines Uhrprogramms mit eingebetteter Schrift ergab kein sichtbares
+Bild. Auch eine unveränderte PowerLED-Referenz mit dieser Schrift blieb schwarz;
+die Standarduhr mit eingebauter Schrift wurde dagegen sichtbar/laufend bestätigt.
+Die verfügbaren Uhren verwenden deshalb nur die eingebaute Schrift. Angehängte
+Schriftressourcen und ihr Verweis bei Offset 72 werden entfernt. Ein Regressionstest
+vergleicht die rote Digitaluhr bytegenau mit der sichtbar bestätigten Referenz.
+Binär-/Pac-Man-Ziffern sind vorerst deaktiviert und werden vom API abgelehnt.
+Die Tafelvariante verwendet normale Ziffern mit Rahmen. 44 Tests insgesamt.
+
 ## 1.1.0 — 2026-11-01
 
 Neue eigenständige Anzeigequelle Uhr & Datum mit sechs Stilen: digital,

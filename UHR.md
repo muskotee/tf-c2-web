@@ -7,19 +7,26 @@ und RSS-Einstellung wieder her, die vor dem Start der Uhr aktiv waren.
 
 ## Darstellungen
 
+**Kompatibilität ab 1.1.1:** Digital, gerahmte Tafel, analog + digital und Weltzeit
+verwenden die eingebaute Uhrschrift. Binär- und Pac-Man-Ziffern sind vorerst
+deaktiviert: Bereits unveränderte PowerLED-Uhrprogramme mit eingebetteter Schrift
+blieben auf dem angeschlossenen TF-C2 schwarz. Die ursprüngliche Version 1.1.0
+hatte nur die Übertragungsbestätigung geprüft, nicht die tatsächlich sichtbare
+Uhr. Die Webvorschau ist für die eingebaute Controller-Schrift schematisch.
+
 - **Digital:** klassische Ziffern mit Sekunden.
-- **Börsentafel:** eigene Segmentziffern und ein farbiger Tafelrahmen.
-- **Binär / BCD:** jede Dezimalziffer wird zur Punktspalte. Gewichte von oben nach
+- **Börsentafel:** digitale Ziffern und ein farbiger Tafelrahmen.
+- **Binär / BCD (derzeit gesperrt):** jede Dezimalziffer wird zur Punktspalte. Gewichte von oben nach
   unten: 8, 4, 2, 1. Gefüllte Felder addieren, hohle Felder bleiben aus. Zwei
   Spalten bilden jeweils Stunden, Minuten und Sekunden.
-- **Arcade:** kleine Pac-Man-Ziffern mit gefressenen Punkten über jeder Ziffer.
+- **Arcade (derzeit gesperrt):** kleine Pac-Man-Ziffern mit gefressenen Punkten über jeder Ziffer.
   Die Sekunden-Einer starten alle zehn Sekunden neu. Dies ist eine Ziffernanimation,
   kein umlaufender 60-Sekunden-Rahmen.
 - **Bahnhof:** analoge Uhr mit drei Zeigern und digitaler Anzeige daneben.
 - **Weltzeit:** zwei digitale Uhren nebeneinander; die Städtenamen stehen in der
   Webansicht. Es werden keine echten Börsenkurse abgerufen.
 
-Für die ersten vier Stile stehen Uhrzeit, Uhrzeit plus Datum und Datum allein zur
+Für Digital und die gerahmte Tafel stehen Uhrzeit, Uhrzeit plus Datum und Datum allein zur
 Wahl. Datum: Tag.Monat.Jahr, ISO oder ISO mit kurzem Jahr. Bei Analog- und Weltzeit
 ist die Darstellung auf Uhrzeit ausgelegt. Ziffernfarbe lässt sich wählen; Tafelrahmen
 und analoge Uhr bieten zusätzlich eine Akzentfarbe.

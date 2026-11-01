@@ -79,8 +79,15 @@ class Controller:
         self.device = {'connected': False, 'checking': True, 'width': 128, 'height': 32,
                        'baud': 57600, 'firmware': 'TF-C2 0.5.9'}
         self.stopping = threading.Event()
+        clock = setting('clock', {})
+        migrate_clock = None
+        if clock.get('enabled') and clock.get('engine') != 2:
+            migrate_clock = clocks.options({**clock, 'style': clock.get('style') if clock.get('style') in clocks.SUPPORTED_STYLES else 'digital'})
+            save_setting('clock', {**clock, 'enabled': False})
         threading.Thread(target=self.worker, daemon=True).start()
         threading.Thread(target=self.scheduler, daemon=True).start()
+        if migrate_clock:
+            self.enqueue('clock', migrate_clock)
 
     def update(self, **value):
         with self.lock:
@@ -219,7 +226,7 @@ class Controller:
             return
         if kind == 'clock':
             previous = setting('clock', {})
-            if not previous.get('enabled'):
+            if not previous.get('enabled') and (setting('last') or {}).get('source') != 'clock':
                 save_setting('clock_previous', {'last': setting('last'), 'auto': setting('auto', DEFAULT_AUTO)})
             program, opt = clocks.compile_program(opt)
             with self.hardware_lock:
@@ -245,10 +252,10 @@ class Controller:
             program, _ = clocks.compile_program(opt)
             page = clocks.windows(program)[1][1]
             extra['world_offset'] = int.from_bytes(program[page+18:page+20], 'little', signed=True)
-        save_setting('clock', {**opt, **extra, 'enabled': True, 'synced': time.time()})
+        save_setting('clock', {**opt, **extra, 'enabled': True, 'engine': 2, 'synced': time.time()})
         with self.lock:
             self.device = {**info, 'checked': time.time(), 'checking': False}
-        self.update(state='done', progress=100, message='Uhr läuft auf dem Controller · Zeitabgleich bestätigt.')
+        self.update(state='done', progress=100, message='Uhrprogramm und Zeitabgleich vom Controller bestätigt.')
 
     def scheduler(self):
         last_probe = 0
@@ -310,6 +317,7 @@ class Controller:
         return {'device': device, 'job': job, 'feeds': sources, 'presets': presets,
                 'events': events, 'logos': images, 'last': setting('last'), 'auto': {**DEFAULT_AUTO, **setting('auto', {})},
                 'timelines': projects, 'clock': {**clocks.DEFAULT, **setting('clock', {})},
+                'clock_supported_styles': list(clocks.SUPPORTED_STYLES),
                 'effects': [{'value': k, 'label': v[1], 'ticker': k.startswith('ticker_')} for k, v in display.EFFECTS.items()],
                 'server_time': time.time()}
 
