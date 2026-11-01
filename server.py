@@ -19,6 +19,7 @@ from urllib.parse import urlsplit
 import display
 import feeds
 import logos
+import clocks
 
 ROOT = Path(__file__).resolve().parent
 DATA = ROOT / 'data'
@@ -163,6 +164,13 @@ class Controller:
                         self.device = {**info, 'checked': time.time(), 'checking': False}
                     self.update(state='done', progress=100, message='Display antwortet.')
                     continue
+                if kind in ('clock', 'clock_sync', 'clock_stop'):
+                    self.clock_job(kind, value)
+                    continue
+                clock = {**clocks.DEFAULT, **setting('clock', {})}
+                if clock['enabled']:
+                    clock['enabled'] = False
+                    save_setting('clock', clock)
                 if kind == 'rss':
                     self.update(message='Lade RSS-Schlagzeilen …')
                     value = self.rss_options(value)
@@ -193,6 +201,55 @@ class Controller:
             finally:
                 self.jobs.task_done()
 
+    def clock_job(self, kind, value):
+        opt = clocks.options(setting('clock', {}) if kind == 'clock_sync' else value)
+        if kind == 'clock_stop':
+            previous = setting('clock_previous') or {}
+            last = previous.get('last')
+            with self.hardware_lock:
+                if last and last['source'] == 'timeline':
+                    result = display.upload({'name': last['name'], 'scenes': last['scenes']})
+                else:
+                    result = display.upload(last['options'] if last and last['source'] != 'clock' else {'text': 'Uhr beendet', 'mode': 'static'})
+            save_setting('last', {**result, 'source': last['source'] if last else 'text', 'sent': time.time()})
+            save_setting('clock', {**opt, 'enabled': False})
+            if previous.get('auto'):
+                save_setting('auto', {**previous['auto'], 'next': 0})
+            self.update(state='done', progress=100, message='Vorherige Anzeige wiederhergestellt.')
+            return
+        if kind == 'clock':
+            previous = setting('clock', {})
+            if not previous.get('enabled'):
+                save_setting('clock_previous', {'last': setting('last'), 'auto': setting('auto', DEFAULT_AUTO)})
+            program, opt = clocks.compile_program(opt)
+            with self.hardware_lock:
+                result = display.upload_program(program, {'pages': len(clocks.windows(program)), 'bytes': len(program),
+                    'options': {'text': clocks.STYLES[opt['style']], 'logo_id': None}},
+                    lambda p,m: self.update(progress=p,message=m))
+                info = clocks.sync(opt)
+            save_setting('auto', {**DEFAULT_AUTO, **setting('auto', {}), 'enabled': False})
+            save_setting('last', {**result, 'source': 'clock', 'sent': time.time(), 'clock': opt})
+        else:
+            if not opt['enabled']:
+                self.update(state='done',progress=100,message='Uhr ist nicht aktiv.')
+                return
+            with self.hardware_lock:
+                if opt['style'] == 'world':
+                    program, _ = clocks.compile_program(opt)
+                    delta = int.from_bytes(program[clocks.windows(program)[1][1]+18:clocks.windows(program)[1][1]+20], 'little', signed=True)
+                    if setting('clock', {}).get('world_offset') != delta:
+                        display.upload_program(program, {'pages': 2, 'bytes': len(program), 'options': {'text': 'Weltzeit'}})
+                info = clocks.sync(opt)
+        extra = {}
+        if opt['style'] == 'world':
+            program, _ = clocks.compile_program(opt)
+            page = clocks.windows(program)[1][1]
+            extra['world_offset'] = int.from_bytes(program[page+18:page+20], 'little', signed=True)
+        save_setting('clock', {**opt, **extra, 'enabled': True, 'synced': time.time()})
+        with self.lock:
+            self.device = {**info, 'checked': time.time(), 'checking': False}
+        self.update(state='done', progress=100, message='Uhr läuft auf dem Controller · Zeitabgleich bestätigt.')
+
     def scheduler(self):
         last_probe = 0
         while not self.stopping.wait(2):
@@ -212,6 +269,17 @@ class Controller:
                     with self.lock:
                         self.device.update(connected=False, checking=False, error=str(exc), checked=now)
             auto = {**DEFAULT_AUTO, **setting('auto', {})}
+            clock = {**clocks.DEFAULT, **setting('clock', {})}
+            if clock['enabled']:
+                if now >= clock.get('next_sync', clock.get('synced', 0) + 60):
+                    # Retry failures at a bounded rate; native RTC keeps ticking.
+                    clock['next_sync'] = now + 60
+                    save_setting('clock', clock)
+                    try:
+                        self.enqueue('clock_sync', {})
+                    except ValueError:
+                        pass
+                continue
             if auto['enabled'] and auto['next'] <= now:
                 auto['next'] = now + auto['interval'] * 60
                 save_setting('auto', auto)
@@ -241,7 +309,7 @@ class Controller:
             project['scene_count'] = len(json.loads(project.pop('scenes')))
         return {'device': device, 'job': job, 'feeds': sources, 'presets': presets,
                 'events': events, 'logos': images, 'last': setting('last'), 'auto': {**DEFAULT_AUTO, **setting('auto', {})},
-                'timelines': projects,
+                'timelines': projects, 'clock': {**clocks.DEFAULT, **setting('clock', {})},
                 'effects': [{'value': k, 'label': v[1], 'ticker': k.startswith('ticker_')} for k, v in display.EFFECTS.items()],
                 'server_time': time.time()}
 
@@ -293,6 +361,7 @@ class Handler(BaseHTTPRequestHandler):
         files = {'/': ('index.html', 'text/html; charset=utf-8'),
                  '/app.js': ('app.js', 'text/javascript; charset=utf-8'),
                  '/studio.js': ('studio.js', 'text/javascript; charset=utf-8'),
+                 '/clock.js': ('clock.js', 'text/javascript; charset=utf-8'),
                  '/style.css': ('style.css', 'text/css; charset=utf-8')}
         if path in files:
             filename, content = files[path]
@@ -316,6 +385,19 @@ class Handler(BaseHTTPRequestHandler):
             value = json.loads(self.rfile.read(length))
             if not isinstance(value, dict):
                 raise ValueError('JSON-Objekt erwartet.')
+            controller = self.server.controller
+            if path == '/api/clock/preview':
+                image, opt = clocks.preview(value)
+                return self.reply({'image': base64.b64encode(display.png(image)).decode(), 'options': opt,
+                                   'time': clocks.now(opt).isoformat()})
+            if path == '/api/clock/start':
+                opt = clocks.options(value)
+                clocks.compile_program(opt)
+                return self.reply(controller.enqueue('clock', opt), 202)
+            if path == '/api/clock/stop':
+                if not setting('clock', {}).get('enabled'):
+                    raise ValueError('Die Uhr ist nicht aktiv.')
+                return self.reply(controller.enqueue('clock_stop', setting('clock', {})), 202)
             controller = self.server.controller
             if path == '/api/timeline/preview':
                 scenes = display.render_timeline(value)
@@ -433,6 +515,8 @@ class Handler(BaseHTTPRequestHandler):
                             raise ValueError('Bitte zuerst einen Feed hinzufügen und aktivieren.')
                 auto['next'] = time.time() if auto['enabled'] else 0
                 save_setting('auto', auto)
+                if auto['enabled']:
+                    save_setting('clock', {**clocks.DEFAULT, **setting('clock', {}), 'enabled': False})
                 return self.reply({'ok': True})
             return self.reply({'error': 'Nicht gefunden.'}, 404)
         except (ValueError, TypeError, OverflowError, KeyError) as exc:
@@ -446,7 +530,8 @@ def main():
     init()
     server = ThreadingHTTPServer(('0.0.0.0', PORT), Handler)
     server.daemon_threads = True
-    server.allowed_hosts = {'localhost', '127.0.0.1', socket.gethostname(), socket.gethostname() + '.local'}
+    server.allowed_hosts = {'localhost', '127.0.0.1', 'raspberrypi', 'raspberrypi.local', socket.gethostname()}
+    server.allowed_hosts.add(socket.gethostname() + '.local')
     server.allowed_hosts.update(h.strip().lower() for h in os.environ.get('TF_ALLOWED_HOSTS', '').split(',') if h.strip())
     try:
         server.allowed_hosts.update(a[4][0] for a in socket.getaddrinfo(socket.gethostname(), None))

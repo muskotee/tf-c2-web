@@ -5,6 +5,10 @@ Abhängigkeiten unabhängig von diesem Projekt. Pillow wird bei der Installation
 über pip bezogen und ist nicht als Bibliothek im Paket enthalten.
 
 Die Schrift wird aus dem Betriebssystempaket fonts-liberation geladen.
+Die nativen Uhrvorlagen in `clock-templates/` enthalten ebenfalls aus der
+PowerLED-Ausgabe erfasste Glyphenraster und Uhrstrukturen; alternative Ziffern
+werden von der Anwendung in diesen Rasterplätzen erzeugt. Details stehen in
+`clock-templates/README.md`.
 
 `image-template.bin` ist eine aus einer nativen PowerLED-Übertragung gewonnene
 2136-Byte-Programmreferenz. Der Encoder verwendet den 576-Byte-Strukturvorspann

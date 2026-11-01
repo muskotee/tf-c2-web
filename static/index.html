@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#101719"><title>Matrix · Displaysteuerung</title>
-  <link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script><script src="/studio.js" defer></script>
+  <link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script><script src="/studio.js" defer></script><script src="/clock.js" defer></script>
 </head>
 <body>
 <div class="app-shell">
@@ -14,6 +14,7 @@
       <button class="nav-item active" data-view="text" aria-current="page"><span class="nav-icon">Aa</span>Text & Anzeige<span class="nav-arrow">↗</span></button>
       <button class="nav-item" data-view="studio"><span class="nav-icon">▥</span>Szenenstudio<span class="nav-count" id="scene-count">0</span></button>
       <button class="nav-item" data-view="rss"><span class="nav-icon">◔</span>RSS-Feeds<span id="feed-count" class="nav-count">0</span></button>
+      <button class="nav-item" data-view="clock"><span class="nav-icon">◷</span>Uhr & Datum</button>
       <button class="nav-item" data-view="presets"><span class="nav-icon">▤</span>Vorlagen</button>
       <button class="nav-item" data-view="log"><span class="nav-icon">≡</span>Protokoll</button>
     </nav>
@@ -60,6 +61,22 @@ Willkommen zu Hause.</textarea>
         </div>
       </section>
 
+      <section class="view" id="view-clock" hidden>
+        <div class="clock-grid"><section class="card"><div class="card-heading"><h2>Deine Zeit. Dein Stil.</h2><span class="chip" id="clock-badge">PAUSIERT</span></div>
+          <form id="clock-form"><label for="clock-style">Uhrdarstellung</label><select id="clock-style"><option value="digital">Digital · klassisch</option><option value="segment">Börsentafel · Segmentziffern</option><option value="binary">Binär · BCD-Punkte</option><option value="arcade">Arcade · Pac-Man-Ziffern</option><option value="analog">Bahnhof · analog + digital</option><option value="world">Weltzeit · zwei Städte</option></select>
+            <div class="clock-style-tiles" id="clock-tiles"><button type="button" data-clock-style="digital"><b>12:34</b>Digital</button><button type="button" data-clock-style="segment"><b>▣▣:▣▣</b>Börsentafel</button><button type="button" data-clock-style="binary"><b>⠿ ⠿ ⠿</b>Binär</button><button type="button" data-clock-style="arcade"><b>ᗧ · · ·</b>Arcade</button><button type="button" data-clock-style="analog"><b>◷</b>Bahnhof</button><button type="button" data-clock-style="world"><b>↔</b>Weltzeit</button></div>
+            <p class="clock-description" id="clock-description"></p>
+            <label for="clock-content">Inhalt</label><select id="clock-content"><option value="both">Uhrzeit und Datum · kompakt</option><option value="time">Nur Uhrzeit · große Ziffern</option><option value="date">Nur Datum · große Ziffern</option></select>
+            <label for="clock-date-format">Datumsformat</label><select id="clock-date-format"><option value="de">01.11.2026 · Tag.Monat.Jahr</option><option value="iso">2026-11-01 · Jahr-Monat-Tag</option><option value="short">26-11-01 · kompaktes Jahr-Monat-Tag</option></select>
+            <div class="field-grid"><div><label for="clock-color">Ziffern und Zeiger</label><select id="clock-color"><option value="cyan">Cyan</option><option value="red">Rot</option><option value="green">Grün</option><option value="blue">Blau</option><option value="amber">Gelb</option><option value="magenta">Magenta</option><option value="white">Weiß</option></select></div><div><label for="clock-accent">Akzentfarbe</label><select id="clock-accent"><option value="amber">Gelb</option><option value="cyan">Cyan</option><option value="red">Rot</option><option value="green">Grün</option><option value="blue">Blau</option><option value="magenta">Magenta</option><option value="white">Weiß</option></select></div></div>
+            <label for="clock-timezone">Zeitzone</label><select id="clock-timezone"><option value="Europe/Berlin">Berlin · Sommer-/Winterzeit automatisch</option><option value="Europe/London">London</option><option value="UTC">UTC</option><option value="America/New_York">New York</option><option value="Asia/Tokyo">Tokio</option></select>
+            <div id="clock-second-field" hidden><label for="clock-second">Zweite Stadt</label><select id="clock-second"><option value="America/New_York">New York</option><option value="Europe/Berlin">Berlin</option><option value="Europe/London">London</option><option value="UTC">UTC</option><option value="Asia/Tokyo">Tokio</option></select></div>
+            <div class="form-actions"><button class="button primary" id="clock-start" type="submit">Uhr am Display starten ↗</button><button class="button secondary" id="clock-stop" type="button" disabled>Vorherige Anzeige</button></div>
+            <p class="field-hint">Die Uhr läuft auf dem Controller weiter, auch bei geschlossenem Browser. Der Raspberry gleicht die Zeit jede Minute ab. Starten pausiert RSS; eine Text- oder Timeline-Sendung beendet den Uhrmodus.</p>
+          </form></section>
+          <div><section class="card preview-card"><div class="card-heading"><h2>Eine Sekunde voraus.</h2><span class="preview-live"><span></span>LIVE-VORSCHAU</span></div><div class="display-stage"><div class="display-housing"><img id="clock-preview" width="128" height="32" alt="Live-Vorschau der Uhr"><div class="pixel-grid"></div></div></div><p class="clock-zones" id="clock-zones"></p><p class="preview-note">Die Vorschau verwendet die eingebetteten Uhrschriften. Native Datumsformate und Zeiger werden vom Controller dargestellt.</p><div id="clock-error" class="inline-error" hidden></div></section>
+            <section class="card clock-explainer"><p class="eyebrow">SO TICKT SIE</p><h3 id="clock-tip-title">Echte Uhr, kein Standbild.</h3><p id="clock-tip">Die Sekunden entstehen direkt auf dem Controller. Es wird nicht jede Sekunde ein neues Anzeigeprogramm geschrieben.</p><p class="field-hint" id="clock-sync">Noch nicht gestartet.</p></section></div></div>
+      </section>
       <section class="view" id="view-rss" hidden>
         <div class="rss-grid"><div><section class="card"><div class="card-heading"><h2>Deine Quellen</h2><span class="small-label" id="sources-label">0 FEEDS</span></div><div id="feed-list"></div></section>
           <section class="card feed-form-card"><div class="card-heading"><h2 id="feed-form-title">Feed hinzufügen</h2><button type="button" class="text-link" id="cancel-feed" hidden>Abbrechen</button></div><form id="feed-form"><input id="feed-id" type="hidden"><label for="feed-name">Name</label><input id="feed-name" maxlength="80" placeholder="Zum Beispiel: Meine Nachrichten" required><label for="feed-url">RSS- oder Atom-Adresse</label><input id="feed-url" type="url" maxlength="2048" placeholder="https://beispiel.de/feed.xml" required><p class="field-hint">Die Feed-Adresse findest du meist unter „RSS“ auf der Webseite deiner Quelle.</p><div class="form-actions"><button type="button" class="button secondary" id="check-feed">Feed prüfen</button><button type="submit" class="button primary" id="store-feed">Quelle speichern <span>+</span></button></div></form><div id="feed-check" hidden></div></section></div>

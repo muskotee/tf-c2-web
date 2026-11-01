@@ -2,10 +2,14 @@
 
 Eine lokale Weboberfläche für ein **128 × 32 RGB-LED-Display mit TF-C2 V6**,
 Firmware **0.5.9**, angeschlossen über einen USB-Seriell-Adapter an einen Raspberry Pi.
-Version **1.0.0**. Die Anwendung läuft vollständig auf dem Raspberry; Windows und
+Version **1.1.0**. Die Anwendung läuft vollständig auf dem Raspberry; Windows und
 PowerLED sind für den Betrieb nicht erforderlich.
 
 ## Funktionen
+
+- Eigene Ansicht **Uhr & Datum**: Digital, Segmenttafel, BCD-Binär,
+  Pac-Man-Ziffern, analog + digital und zwei Weltzeitstädte. Drei Datumsformate,
+  native laufende Sekunden, Zeitzonen und automatische Zeitabgleiche.
 
 - Texte, Umlaute, sieben Textfarben und farbige Hintergründe.
 - Schriftgrößen 10–28 Pixel, auch unterschiedliche Größen pro Textzeile.
@@ -60,6 +64,7 @@ vorgesehen. Keine Router-Portfreigabe einrichten.
 ## Bedienung und Wartung
 
 - [Bedienungsanleitung](docs/BEDIENUNG.md)
+- [Uhr und Datum: Stile, Zeitquelle und Bedienung](UHR.md)
 - [Betrieb, Sicherung und Fehlerbehebung](docs/BETRIEB.md)
 - [Technik und Protokoll](docs/TECHNIK.md)
 - [Versionshinweise](CHANGELOG.md)
@@ -69,10 +74,10 @@ vorgesehen. Keine Router-Portfreigabe einrichten.
 
 ```sh
 cd ~/tf-c2-web
-.venv/bin/python -m unittest -v test_control.py
+.venv/bin/python -m unittest -v test_control.py test_clocks.py
 ```
 
-Die 34 Tests benötigen keinen angeschlossenen Controller. Sie prüfen unter anderem
+Die 42 Tests benötigen keinen angeschlossenen Controller. Sie prüfen unter anderem
 Paketformat, Farbplanes, Textzentrierung, Rahmen, Hintergründe, Logos, Szenen und RSS.
 Hardwaretests wurden zusätzlich am genannten Display durchgeführt.
 

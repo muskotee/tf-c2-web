@@ -10,6 +10,7 @@ const copy = {
   text: ['TEXT & ANZEIGE', 'Eine Nachricht. In Licht.', 'Text gestalten, Vorschau prüfen und direkt an dein Display senden.'],
   studio: ['SZENENSTUDIO', 'Deine Szenen. Deine Reihenfolge.', 'Text, Logos und Effekte als Folge zusammenstellen, speichern und gemeinsam senden.'],
   rss: ['RSS-FEEDS', 'Die Welt auf deinem Display.', 'Deine Quellen. Deine Auswahl. Automatisch aktuelle Schlagzeilen.'],
+  clock: ['UHR & DATUM', 'Zeit, die Spaß macht.', 'Digitale Ziffern, binäre Punkte und kleine Arcade-Momente für dein Display.'],
   presets: ['VORLAGEN', 'Gute Texte bleiben.', 'Gespeicherte Nachrichten laden, anpassen und wieder anzeigen.'],
   log: ['PROTOKOLL', 'Alles im Blick.', 'Bestätigte Übertragungen, RSS-Aktualisierungen und mögliche Fehler.'],
 };
@@ -434,6 +435,7 @@ async function poll(){
       }
     }
     window.MatrixStudio?.onState(state);
+    window.MatrixClock?.onState(state);
   }catch(error){
     $('connection').replaceChildren(node('span','status-dot offline'),node('span','','Websteuerung nicht erreichbar'));
     $('side-dot').className='status-dot offline';

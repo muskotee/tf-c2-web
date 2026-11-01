@@ -20,7 +20,7 @@ if ! id -nG | tr ' ' '\n' | grep -qx dialout; then
 fi
 if [[ ! -f config.env ]]; then cp config.env.example config.env; fi
 cp tf-c2-web.service "$HOME/.config/systemd/user/tf-c2-web.service"
-.venv/bin/python -m unittest -q test_control.py
+.venv/bin/python -m unittest -q test_control.py test_clocks.py
 systemctl --user daemon-reload
 systemctl --user enable --now tf-c2-web.service
 sudo loginctl enable-linger "$(id -un)"

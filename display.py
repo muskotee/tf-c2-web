@@ -490,6 +490,10 @@ def upload(value, progress=lambda percent, message: None):
     else:
         program, opt, pages = compile_program(value)
         result = {'pages': len(pages), 'bytes': len(program), 'options': opt}
+    return upload_program(program, result, progress)
+
+
+def upload_program(program, result, progress=lambda percent, message: None):
     backup = ROOT / 'data'
     backup.mkdir(exist_ok=True)
     with serial_port() as fd:
