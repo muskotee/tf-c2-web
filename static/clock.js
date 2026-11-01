@@ -1,13 +1,13 @@
 'use strict';
 (() => {
   let filled=false, dirty=false, busy=false, request=0, timer, pending=false;
-  const descriptions={digital:'Klassische Uhr mit Sekunden. Eingebaute Uhrschrift, optional mit Datum.',segment:'Digitale Ziffern und eine gerahmte Tafel – inspiriert von Börsen- und Anzeigetafeln.',binary:'BCD: Jede Dezimalziffer erhält eine Punktspalte. Von oben nach unten zählen die Zeilen 8, 4, 2 und 1. Gefüllte Punkte addieren; hohle Punkte sind aus.',arcade:'Pac-Man-Ziffern: Über jeder Ziffer frisst sich ein kleiner Held durch eine Punktleiste. Die Einer der Sekunden beginnen alle zehn Sekunden von vorn.',analog:'Eine analoge Uhr mit Stunden-, Minuten- und Sekundenzeiger, daneben die digitale Uhrzeit.',world:'Zwei Uhren nebeneinander. Die Städte und Zeitzonen wählst du selbst.'};
+  const descriptions={digital:'Klassische Uhr mit Sekunden. Eingebaute Uhrschrift, optional mit Datum.',segment:'Digitale Ziffern und eine gerahmte Tafel – inspiriert von Börsen- und Anzeigetafeln.',binary:'BCD: Jede Dezimalziffer erhält eine Punktspalte. Von oben nach unten zählen die Zeilen 8, 4, 2 und 1. Gefüllte Punkte addieren; hohle Punkte sind aus.',arcade:'Pac-Man-Ziffern: Über jeder Ziffer frisst sich ein kleiner Held durch eine Punktleiste. Die Einer der Sekunden beginnen alle zehn Sekunden von vorn.',analog:'Analoge Uhr mit roten Stunden-, Minuten- und Sekundenzeigern. Daneben stehen die Uhrzeit und darunter das aktuelle Datum.',world:'Zwei Uhren nebeneinander. Die Städte und Zeitzonen wählst du selbst.'};
   function value(){return {style:$('clock-style').value,content:$('clock-content').value,color:$('clock-color').value,accent:$('clock-accent').value,timezone:$('clock-timezone').value,second_timezone:$('clock-second').value,date_format:$('clock-date-format').value};}
   function controls(){
     const opt=value(),special=['analog','world'].includes(opt.style);
     $('clock-content').disabled=special;
-    $('clock-date-format').disabled=special||$('clock-content').value==='time';
-    if(special)$('clock-content').value='time';
+    if(special)$('clock-content').value=opt.style==='analog'?'both':'time';
+    $('clock-date-format').disabled=opt.style==='world'||$('clock-content').value==='time';
     $('clock-second-field').hidden=opt.style!=='world';
     $('clock-accent').disabled=!['segment','analog'].includes(opt.style);
     $('clock-description').textContent=descriptions[opt.style];

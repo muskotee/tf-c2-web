@@ -22,13 +22,15 @@ Uhr. Die Webvorschau ist für die eingebaute Controller-Schrift schematisch.
 - **Arcade (derzeit gesperrt):** kleine Pac-Man-Ziffern mit gefressenen Punkten über jeder Ziffer.
   Die Sekunden-Einer starten alle zehn Sekunden neu. Dies ist eine Ziffernanimation,
   kein umlaufender 60-Sekunden-Rahmen.
-- **Bahnhof:** analoge Uhr mit drei Zeigern und digitaler Anzeige daneben.
+- **Bahnhof:** analoge Uhr mit drei roten Zeigern, daneben die Uhrzeit und
+  darunter das aktuelle Datum. Die kompatiblen Zeigerwerte bleiben unverändert;
+  Ziffern- und Zifferblattfarbe lassen sich weiterhin wählen.
 - **Weltzeit:** zwei digitale Uhren nebeneinander; die Städtenamen stehen in der
   Webansicht. Es werden keine echten Börsenkurse abgerufen.
 
 Für Digital und die gerahmte Tafel stehen Uhrzeit, Uhrzeit plus Datum und Datum allein zur
-Wahl. Datum: Tag.Monat.Jahr, ISO oder ISO mit kurzem Jahr. Bei Analog- und Weltzeit
-ist die Darstellung auf Uhrzeit ausgelegt. Ziffernfarbe lässt sich wählen; Tafelrahmen
+Wahl. Datum: Tag.Monat.Jahr, ISO oder ISO mit kurzem Jahr. Die Bahnhofsuhr zeigt
+Uhrzeit plus Datum, die Weltzeitansicht nur Uhrzeiten. Ziffernfarbe lässt sich wählen; Tafelrahmen
 und analoge Uhr bieten zusätzlich eine Akzentfarbe.
 
 ## Zeitquelle und Betrieb

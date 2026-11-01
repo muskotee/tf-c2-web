@@ -81,7 +81,7 @@ class Controller:
         self.stopping = threading.Event()
         clock = setting('clock', {})
         migrate_clock = None
-        if clock.get('enabled') and clock.get('engine') != 2:
+        if clock.get('enabled') and (clock.get('engine') != 2 or (clock.get('style') == 'analog' and clock.get('station_layout') != 2)):
             migrate_clock = clocks.options({**clock, 'style': clock.get('style') if clock.get('style') in clocks.SUPPORTED_STYLES else 'digital'})
             save_setting('clock', {**clock, 'enabled': False})
         threading.Thread(target=self.worker, daemon=True).start()
@@ -248,6 +248,8 @@ class Controller:
                         display.upload_program(program, {'pages': 2, 'bytes': len(program), 'options': {'text': 'Weltzeit'}})
                 info = clocks.sync(opt)
         extra = {}
+        if opt['style'] == 'analog':
+            extra['station_layout'] = 2
         if opt['style'] == 'world':
             program, _ = clocks.compile_program(opt)
             page = clocks.windows(program)[1][1]

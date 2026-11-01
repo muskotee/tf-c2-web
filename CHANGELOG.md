@@ -1,5 +1,14 @@
 # Versionshinweise
 
+## 1.1.2 — 2026-11-01
+
+Bahnhofsuhr: Die nativen roten Zeigerparameter bleiben unverändert. Die vorherige
+Farbanpassung verursachte wandernde Striche; das Rücksetzen wurde am Display als
+störungsfrei bestätigt. Die Fenstergeometrie ist auf 32 Pixel ausgerichtet.
+Rechts stehen jetzt Uhrzeit und aktuelles Datum in zwei getrennten, zentrierten
+96×16-Fenstern. Eine bereits aktive Bahnhofsuhr wird beim Update neu übertragen.
+47 Tests einschließlich Zeigerparametern, Zentrierung, Datumsposition und Migration.
+
 ## 1.1.1 — 2026-11-01
 
 Korrektur für schwarze Uhranzeigen am realen TF-C2: Die vom Controller bestätigte

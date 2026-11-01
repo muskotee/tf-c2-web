@@ -41,7 +41,9 @@ def options(value):
         except ZoneInfoNotFoundError as exc:
             raise ValueError('Zeitzonendaten fehlen auf dem Raspberry.') from exc
     opt['enabled'] = bool(opt['enabled'])
-    if opt['style'] in ('analog', 'world'):
+    if opt['style'] == 'analog':
+        opt['content'] = 'both'
+    if opt['style'] == 'world':
         opt['content'] = 'time'
     return opt
 
@@ -171,6 +173,30 @@ def pack_raster(image):
     return data
 
 
+def station_program():
+    """Separate byte-aligned, non-overlapping native clock viewports.
+
+    The captured custom-font layout used x=36 / width=72 for its second
+    window. Rebuild it for the ROM font: 32px dial plus a 96px digital area.
+    Time and date get independent 16px-high viewports, in that order.
+    """
+    source=(ROOT/'analog.bin').read_bytes()
+    program=bytearray(source[:576])
+    struct.pack_into('<I',program,72,0)
+    program[348:528]=bytes(180)
+    struct.pack_into('<IHHHH',program,348,576,0,0,32,32)
+    digital_page=576+24+32*32*3//8
+    date_page=digital_page+24+96*16*3//8
+    struct.pack_into('<IHHHH',program,360,digital_page,32,0,96,16)
+    struct.pack_into('<IHHHH',program,372,date_page,32,16,96,16)
+    program.extend(source[576:digital_page])
+    program.extend((ROOT/'standard.bin').read_bytes()[576:600])
+    program.extend(bytes(96*16*3//8))
+    program.extend((ROOT/'date.bin').read_bytes()[576:600])
+    program.extend(bytes(96*16*3//8))
+    return program
+
+
 def compile_program(value, instant=None):
     opt=options(value)
     kind = opt['style'] if opt['style'] in ('analog','world') else ('compact' if opt['content']=='both' else 'date' if opt['content']=='date' else 'digital')
@@ -178,7 +204,7 @@ def compile_program(value, instant=None):
     # On this physical TF-C2 the unmodified captured custom-font program is
     # black, while the captured built-in font 0 clock is visible and ticking.
     # Use the proven ROM font and omit the unsupported appended font resource.
-    program=program[:font_base(program)]
+    program=station_program() if kind=='analog' else program[:font_base(program)]
     struct.pack_into('<I', program, 72, 0)  # no appended font-resource directory
     for index,(_,page,x,y,w,h) in enumerate(windows(program)):
         if program[page+7]==11:
@@ -194,7 +220,8 @@ def compile_program(value, instant=None):
                 program[page+9]=max(0,(w-len(date_text(opt,now(opt,instant)))*6)//2)
             program[page+11]=max(0,(w-48)//2)
         else:
-            program[page+15]=program[page+16]=palette(opt['color']);program[page+17]=palette(opt['accent'])
+            # Preserve the physically verified native hand parameters. Changing
+            # them produced moving red streaks on this controller.
             image=unpack_raster(program,page,w,h)
             image=Image.eval(image.convert('L'),lambda v:255 if v else 0)
             colored=Image.new('RGB',(w,h));colored.paste(display.COLORS[opt['accent']],(0,0,w,h),image)
@@ -226,12 +253,14 @@ def preview(value, instant=None):
         area=unpack_raster(program,page,w,h)
         if program[page+7]==10:
             d=ImageDraw.Draw(area);cx,cy=w//2,h//2
-            for angle,length,color in ((local.hour%12*30+local.minute/2,8,opt['color']),(local.minute*6,12,opt['color']),(local.second*6,13,opt['accent'])):
+            for angle,length,color in ((local.hour%12*30+local.minute/2,8,'red'),(local.minute*6,12,'red'),(local.second*6,13,'red')):
                 radians=math.radians(angle-90);d.line((cx,cy,round(cx+math.cos(radians)*length),round(cy+math.sin(radians)*length)),fill=display.COLORS[color])
         else:
             current=local.astimezone(ZoneInfo(opt['second_timezone'])) if opt['style']=='world' and index else local
-            strings=([date_text(opt,current), current.strftime('%H:%M:%S')] if opt['content']=='both'
-                     else [date_text(opt,current) if opt['content']=='date' else current.strftime('%H:%M:%S')])
+            flags=program[page+8]&15
+            strings=[]
+            if flags&2:strings.append(date_text(opt,current))
+            if flags&8:strings.append(current.strftime('%H:%M:%S'))
             # Schematic ROM-font preview: firmware draws its own built-in font.
             font=ImageFont.truetype('/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf',10)
             masks=[]

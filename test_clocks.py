@@ -9,6 +9,42 @@ import server
 
 
 class ClockTests(unittest.TestCase):
+    def test_existing_station_clock_is_reuploaded_after_layout_update(self):
+        saved={'clock':{'enabled':True,'style':'analog','content':'time','engine':2}}
+        with mock.patch.object(server,'setting',side_effect=lambda k,d=None:saved.get(k,d)),mock.patch.object(server,'save_setting',side_effect=lambda k,v:saved.__setitem__(k,v)),mock.patch.object(threading.Thread,'start'):
+            control=server.Controller()
+            _,kind,value=control.jobs.get_nowait()
+            self.assertEqual((kind,value['style']),('clock','analog'))
+
+    def test_station_viewports_are_aligned_centered_and_have_exact_raster_sizes(self):
+        program,_=clocks.compile_program({'style':'analog'})
+        first,second,third=clocks.windows(program)
+        self.assertEqual(first[2:],(0,0,32,32))
+        self.assertEqual(second[2:],(32,0,96,16))
+        self.assertEqual(third[2:],(32,16,96,16))
+        _,page,x,y,width,height=second
+        self.assertEqual(x%32,0)
+        self.assertEqual(width%32,0)
+        self.assertEqual(y+height,third[3])
+        self.assertEqual(third[3]+third[5],32)
+        left=program[page+11]
+        self.assertEqual(left,width-(left+48))
+        self.assertEqual(page,first[1]+24+32*32*3//8)
+        self.assertEqual(third[1],page+24+96*16*3//8)
+        self.assertEqual(len(program),third[1]+24+96*16*3//8)
+        self.assertFalse(any(program[page+24:third[1]]))
+        self.assertFalse(any(program[third[1]+24:]))
+        self.assertEqual(program[page+8]&15,8)
+        self.assertEqual(program[third[1]+8]&15,2)
+        self.assertEqual(program[third[1]+9],18)
+        self.assertEqual(struct.unpack_from('<I',program,72)[0],0)
+
+    def test_station_preserves_visibly_verified_hand_parameters_for_all_colors(self):
+        reference=(clocks.ROOT/'analog.bin').read_bytes()[576:600]
+        for color in display.COLORS:
+            program,_=clocks.compile_program({'style':'analog','color':color,'accent':color})
+            self.assertEqual(program[576:600],reference)
+
     def test_old_active_clock_is_migrated_to_compatible_renderer(self):
         saved={'clock':{'enabled':True,'style':'binary','content':'time'},'clock_previous':{'last':{'source':'timeline'}}}
         with mock.patch.object(server,'setting',side_effect=lambda k,d=None:saved.get(k,d)),mock.patch.object(server,'save_setting',side_effect=lambda k,v:saved.__setitem__(k,v)),mock.patch.object(threading.Thread,'start'):

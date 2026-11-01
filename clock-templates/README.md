@@ -11,6 +11,16 @@ Der digitale Kompatibilitäts-Upload wird bytegenau dagegen getestet. Beim Entfe
 angehängter Schriften muss zusätzlich der Schriftverweis bei Offset 72 auf null
 gesetzt werden; ein verbleibender Verweis zeigt hinter das verkürzte Programm.
 
+Die Bahnhofsuhr wird für die eingebaute Schrift neu aufgebaut: Zifferblatt
+32×32 bei (0,0), Uhrzeitfenster 96×16 bei (32,0), Datumsfenster 96×16 bei (32,16).
+Die 48 Pixel breite Uhrzeit beginnt relativ bei x=24, das deutsche Datum bei x=18.
+Dadurch sind die Fenster auf 32 Pixel ausgerichtet, überlappen sich nicht und
+die beiden Zeilen liegen mittig im rechten Bereich. Die Zeigerparameter bleiben
+bytegenau auf den unveränderten roten Standardwerten: Änderungen führten am
+realen Display zu wandernden Strichen; die Rückkehr zu diesen Werten wurde vom
+Nutzer als störungsfrei bestätigt. Digitale Seitenheader und leere Raster werden neu angelegt; die alte
+36/72-Pixel-Geometrie der PowerLED-Referenz wird nicht weiterverwendet.
+
 Aus PowerLED 2.89.4 erfasste Programmstrukturen für TF-C2 V6 / Firmware 0.5.9.
 Die Erfassung erfolgte über eine UDP-Antwortsimulation ohne serielle Schreibzugriffe.
 Die Anwendung passt Farben, Datumsformat, Ziffernbitmaps und Weltzeitversatz an.

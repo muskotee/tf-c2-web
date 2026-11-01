@@ -2,7 +2,7 @@
 
 Eine lokale Weboberfläche für ein **128 × 32 RGB-LED-Display mit TF-C2 V6**,
 Firmware **0.5.9**, angeschlossen über einen USB-Seriell-Adapter an einen Raspberry Pi.
-Version **1.1.1**. Die Anwendung läuft vollständig auf dem Raspberry; Windows und
+Version **1.1.2**. Die Anwendung läuft vollständig auf dem Raspberry; Windows und
 PowerLED sind für den Betrieb nicht erforderlich.
 
 ## Funktionen
@@ -79,7 +79,7 @@ cd ~/tf-c2-web
 .venv/bin/python -m unittest -v test_control.py test_clocks.py
 ```
 
-Die 44 Tests benötigen keinen angeschlossenen Controller. Sie prüfen unter anderem
+Die 47 Tests benötigen keinen angeschlossenen Controller. Sie prüfen unter anderem
 Paketformat, Farbplanes, Textzentrierung, Rahmen, Hintergründe, Logos, Szenen und RSS.
 Hardwaretests wurden zusätzlich am genannten Display durchgeführt.
 
