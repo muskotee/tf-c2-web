@@ -174,6 +174,10 @@ class Controller:
                 if kind in ('clock', 'clock_sync', 'clock_stop'):
                     self.clock_job(kind, value)
                     continue
+                if kind == 'timeline_sync':
+                    self.timeline_sync()
+                    continue
+                self.pause_timeline_clock()
                 clock = {**clocks.DEFAULT, **setting('clock', {})}
                 if clock['enabled']:
                     clock['enabled'] = False
@@ -194,7 +198,11 @@ class Controller:
                     save_setting('auto', auto)
                 with self.hardware_lock:
                     result = display.upload(value, lambda p, m: self.update(progress=p, message=m))
+                    if result.get('has_clock'):
+                        clocks.sync(result['clock_reference'])
                 save_setting('last', {**result, 'source': kind, 'sent': time.time()})
+                if kind == 'timeline':
+                    self.enable_timeline_clock(result)
                 with self.lock:
                     self.device.update(connected=True, checking=False, checked=time.time(), error=None)
                 self.update(state='done', progress=100,
@@ -208,9 +216,44 @@ class Controller:
             finally:
                 self.jobs.task_done()
 
+    def pause_timeline_clock(self):
+        active = setting('timeline_clock', {})
+        if active.get('enabled'):
+            save_setting('timeline_clock', {**active, 'enabled': False})
+
+    def enable_timeline_clock(self, result):
+        if not result.get('has_clock'):
+            self.pause_timeline_clock()
+            return
+        save_setting('timeline_clock', {'enabled': True, 'synced': time.time(),
+            'project': {'name': result['name'], 'scenes': result['scenes']},
+            'signature': result['clock_signature'], 'reference': result['clock_reference']})
+
+    def timeline_sync(self):
+        active = setting('timeline_clock', {})
+        if not active.get('enabled'):
+            self.update(state='done',progress=100,message='Uhren-Timeline ist nicht aktiv.')
+            return
+        with self.hardware_lock:
+            if display.timeline_clock_signature(active['project']) != active['signature']:
+                result = display.upload(active['project'], lambda p,m:self.update(progress=p,message=m))
+                info = clocks.sync(result['clock_reference'])
+                save_setting('last', {**result, 'source': 'timeline', 'sent': time.time()})
+                self.enable_timeline_clock(result)
+            else:
+                info = clocks.sync(active['reference'])
+                active['synced'] = time.time()
+                active.pop('next_sync', None)
+                save_setting('timeline_clock', active)
+        with self.lock:
+            self.device = {**info, 'checked': time.time(), 'checking': False}
+        self.update(state='done',progress=100,message='Timeline-Uhren: Zeitabgleich bestätigt.')
+
     def clock_job(self, kind, value):
         opt = clocks.options(setting('clock', {}) if kind == 'clock_sync' else value)
         rendered_day = setting('clock', {}).get('date_day')
+        if kind != 'clock_sync':
+            self.pause_timeline_clock()
         if kind == 'clock_stop':
             previous = setting('clock_previous') or {}
             last = previous.get('last')
@@ -219,8 +262,12 @@ class Controller:
                     result = display.upload({'name': last['name'], 'scenes': last['scenes']})
                 else:
                     result = display.upload(last['options'] if last and last['source'] != 'clock' else {'text': 'Uhr beendet', 'mode': 'static'})
+                if result.get('has_clock'):
+                    clocks.sync(result['clock_reference'])
             save_setting('last', {**result, 'source': last['source'] if last else 'text', 'sent': time.time()})
             save_setting('clock', {**opt, 'enabled': False})
+            if last and last['source'] == 'timeline':
+                self.enable_timeline_clock(result)
             if previous.get('auto'):
                 save_setting('auto', {**previous['auto'], 'next': 0})
             self.update(state='done', progress=100, message='Vorherige Anzeige wiederhergestellt.')
@@ -290,6 +337,16 @@ class Controller:
                     with self.lock:
                         self.device.update(connected=False, checking=False, error=str(exc), checked=now)
             auto = {**DEFAULT_AUTO, **setting('auto', {})}
+            timeline_clock = setting('timeline_clock', {})
+            if timeline_clock.get('enabled'):
+                if now >= timeline_clock.get('next_sync', timeline_clock.get('synced', 0) + 60):
+                    timeline_clock['next_sync'] = now + 60
+                    save_setting('timeline_clock', timeline_clock)
+                    try:
+                        self.enqueue('timeline_sync', {})
+                    except ValueError:
+                        pass
+                continue
             clock = {**clocks.DEFAULT, **setting('clock', {})}
             if clock['enabled']:
                 if now >= clock.get('next_sync', clock.get('synced', 0) + 60):
@@ -332,6 +389,7 @@ class Controller:
                 'events': events, 'logos': images, 'last': setting('last'), 'auto': {**DEFAULT_AUTO, **setting('auto', {})},
                 'timelines': projects, 'clock': {**clocks.DEFAULT, **setting('clock', {})},
                 'clock_supported_styles': list(clocks.SUPPORTED_STYLES),
+                'timeline_clock': {key:value for key,value in setting('timeline_clock', {}).items() if key in ('enabled','synced')},
                 'effects': [{'value': k, 'label': v[1], 'ticker': k.startswith('ticker_')} for k, v in display.EFFECTS.items()],
                 'server_time': time.time()}
 
@@ -539,6 +597,7 @@ class Handler(BaseHTTPRequestHandler):
                 save_setting('auto', auto)
                 if auto['enabled']:
                     save_setting('clock', {**clocks.DEFAULT, **setting('clock', {}), 'enabled': False})
+                    controller.pause_timeline_clock()
                 return self.reply({'ok': True})
             return self.reply({'error': 'Nicht gefunden.'}, 404)
         except (ValueError, TypeError, OverflowError, KeyError) as exc:

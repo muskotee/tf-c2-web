@@ -1,5 +1,21 @@
 # Versionshinweise
 
+## 1.3.0 — 2026-11-01
+
+Uhren als eigener Szenentyp im Szenenstudio. Hinzufügen aus der Uhransicht oder
+über „Uhrszene ＋“, Bearbeiten im passenden Editor, Dauer pro Uhrszene, Duplizieren,
+Sortieren, Speichern/Laden und laufende Uhrvorschau. Uhrgestaltung, Datum, Logo
+und Zeitzonen werden pro Szene gespeichert. Bestehende reine Textfolgen behalten
+ihren bisherigen Encoder.
+
+Gemischte Folgen werden als native Mehrprogramm-Datei übertragen. Verzeichnis
+und Zeigeradressierung wurden gegen originale Zwei- und Drei-Programm-Dateien
+von PowerLED bytegenau geprüft. Der Nutzer bestätigte den fehlerfreien Wechsel
+START → laufende Uhr mit Logo → ENDE am Display. Uhrszenen benötigen keine
+Übertragung pro Wechsel. Minütlicher RTC-Abgleich und gelegentliche Erneuerung
+bei Datums-/Sommerzeitwechseln bleiben auch in gemischten Timelines aktiv.
+58 Tests insgesamt.
+
 ## 1.2.0 — 2026-11-01
 
 Logoauswahl und Upload direkt in der Uhransicht. Ein eigener 32×32-Bereich links

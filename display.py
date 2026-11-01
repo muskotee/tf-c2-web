@@ -455,15 +455,28 @@ def render_timeline(value):
             raise ValueError('Szenen benötigen eindeutige IDs.')
         identifiers.add(identifier)
         name = str(scene.get('name') or f'Szene {index + 1}').strip()[:80] or f'Szene {index + 1}'
+        scene_type = scene.get('type', 'text')
+        if scene_type not in ('text', 'clock'):
+            raise ValueError('Unbekannter Szenentyp.')
         try:
-            opt, images = render(scene['options'])
-            effective = layout(opt)['effective_mode']
+            if scene_type == 'clock':
+                import clocks
+                opt = clocks.options(scene['options'])
+                duration = int(scene['options'].get('duration', 5))
+                if not 2 <= duration <= 30:
+                    raise ValueError('Uhrszenen benötigen 2 bis 30 Sekunden.')
+                image, _ = clocks.preview(opt)
+                images, effective = [image], 'clock'
+                opt['duration'] = duration
+            else:
+                opt, images = render(scene['options'])
+                effective = layout(opt)['effective_mode']
         except ValueError as exc:
             raise ValueError(f'Szene {index + 1} „{name}“: {exc}') from exc
         total_pages += len(images)
         if total_pages > MAX_PAGES:
             raise ValueError(f'Die Timeline enthält mehr als {MAX_PAGES} Seiten. Bitte Szenen kürzen oder entfernen.')
-        rendered.append({'id': identifier, 'name': name, 'options': opt, 'images': images,
+        rendered.append({'id': identifier, 'name': name, 'type': scene_type, 'options': opt, 'images': images,
                          'effective_mode': effective, 'preview_seconds': len(images) * opt['duration']})
     return rendered
 
@@ -471,17 +484,62 @@ def render_timeline(value):
 def timeline_project(value, rendered=None):
     rendered = render_timeline(value) if rendered is None else rendered
     return {'name': str(value.get('name') or 'Meine Timeline').strip()[:80] or 'Meine Timeline',
-            'scenes': [{'id': scene['id'], 'name': scene['name'], 'options': scene['options']} for scene in rendered]}
+            'scenes': [{'id': scene['id'], 'name': scene['name'], 'type': scene['type'], 'options': scene['options']} for scene in rendered]}
 
 
 def compile_timeline(value):
     rendered = render_timeline(value)
     project = timeline_project(value, rendered)
-    program = assemble(rendered)
-    return program, {'options': rendered[0]['options'], 'name': project['name'],
+    clock_scenes = [s for s in rendered if s['type'] == 'clock']
+    extra = {}
+    if clock_scenes:
+        import clocks
+        import programs
+        import datetime
+        instant = datetime.datetime.now(datetime.timezone.utc)
+        reference = clocks.options(clock_scenes[0]['options'])
+        reference_offset = clocks.now(reference, instant).utcoffset()
+        entries = []
+        for scene in rendered:
+            if scene['type'] == 'clock':
+                data, opt = clocks.compile_program(scene['options'], instant)
+                data = bytearray(data)
+                delta = int((clocks.now(opt, instant).utcoffset()-reference_offset).total_seconds()/60)
+                for _,page,*_ in clocks.windows(data):
+                    if data[page+7] in (10,11):
+                        current = struct.unpack_from('<h', data, page+18)[0]
+                        struct.pack_into('<h', data, page+18, current+delta)
+                data = bytes(data)
+            else:
+                data = assemble([scene])
+            # Text programs finish their pages/effects once; live clocks use
+            # a fixed display duration, as in native PowerLED program lists.
+            entries.append((data, scene['preview_seconds'], 1 if scene['type']=='clock' else 0))
+        program = programs.merge(entries)
+        extra = {'has_clock': True, 'clock_reference': reference,
+                 'clock_signature': timeline_clock_signature(project, instant)}
+    else:
+        program = assemble(rendered)
+    first_options = rendered[0]['options'] if rendered[0]['type'] != 'clock' else {'text': rendered[0]['name'], 'logo_id': rendered[0]['options'].get('logo_id')}
+    return program, {'options': first_options, 'name': project['name'], **extra,
                      'scenes': project['scenes'], 'scene_count': len(rendered),
                      'pages': sum(len(s['images']) for s in rendered), 'bytes': len(program),
                      'preview_seconds': sum(s['preview_seconds'] for s in rendered)}
+
+
+def timeline_clock_signature(value, instant=None):
+    import clocks
+    from zoneinfo import ZoneInfo
+    result = []
+    for scene in value.get('scenes', []):
+        if scene.get('type') != 'clock':
+            continue
+        opt = clocks.options(scene['options'])
+        local = clocks.now(opt, instant)
+        second = local.astimezone(ZoneInfo(opt['second_timezone']))
+        result.append([scene['id'], local.date().isoformat() if opt['content'] in ('date','both') else None,
+                       int(local.utcoffset().total_seconds()), int(second.utcoffset().total_seconds()) if opt['style']=='world' else None])
+    return result
 
 
 def upload(value, progress=lambda percent, message: None):

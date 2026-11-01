@@ -34,6 +34,7 @@
   }
   function cancelEdit() {
     editing=null;$('scene-edit-banner').hidden=true;$('add-scene').textContent='Als Szene zur Timeline hinzufügen ＋';
+    $('clock-scene-edit-banner').hidden=true;$('clock-add-scene').textContent='Als Uhrszene zur Timeline hinzufügen ＋';
   }
   function commit(change) {
     undo.push(snapshot());if(undo.length>30)undo.shift();redo.length=0;
@@ -126,7 +127,7 @@
       card.append(head,node('strong','scene-card-title',s.name));
       if(detail?.pages?.[0]){const image=node('img','scene-thumb');image.src='data:image/png;base64,'+detail.pages[0];image.alt=`Vorschau ${s.name}`;card.append(image);}else card.append(node('div','scene-thumb pending-thumb','Vorschau …'));
       card.append(node('span','scene-card-meta',`${stamp(seconds(s))} · ${detail?.pages?.length||1} Seite(n)`));
-      card.append(node('span','scene-card-effect',EFFECT_LABEL(s.options.effect)));
+      card.append(node('span','scene-card-effect',s.type==='clock'?'◷ Uhr · live':EFFECT_LABEL(s.options.effect)));
       card.addEventListener('click',()=>selectScene(s.id));card.addEventListener('dblclick',()=>edit(s.id));
       card.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();edit(s.id);}if(e.altKey&&['ArrowLeft','ArrowRight'].includes(e.key)){e.preventDefault();selected=s.id;moveBy(e.key==='ArrowLeft'?-1:1);}});
       card.addEventListener('dragstart',e=>{pause();e.dataTransfer.setData('text/plain',s.id);e.dataTransfer.effectAllowed='move';card.classList.add('dragging');});
@@ -150,7 +151,7 @@
     $('studio-scene-name').value=current.name;$('studio-scene-duration').value=current.options.duration;
     const detail=info(current),ticker=detail?.effective_mode==='ticker';
     $('studio-scene-duration').disabled=ticker;
-    $('studio-scene-info').textContent=`${detail?.pages?.length||1} Seite(n) · ${EFFECT_LABEL(current.options.effect)}. `+(ticker?'Die tatsächliche Laufzeit der Laufschrift hängt von der Geschwindigkeit ab.':'Die Standzeit gilt pro Seite; der gewählte Übergang kommt hinzu.');
+    $('studio-scene-info').textContent=current.type==='clock'?'Laufende Uhr mit Datum und Logo. Die Dauer gilt für die gesamte Uhrszene.':`${detail?.pages?.length||1} Seite(n) · ${EFFECT_LABEL(current.options.effect)}. `+(ticker?'Die tatsächliche Laufzeit der Laufschrift hängt von der Geschwindigkeit ab.':'Die Standzeit gilt pro Seite; der gewählte Übergang kommt hinzu.');
     $('studio-move-left').disabled=index===0;$('studio-move-right').disabled=index===project.scenes.length-1;
   }
   function render() {
@@ -166,18 +167,22 @@
   }
   function edit(id) {
     const current=project.scenes.find(s=>s.id===id);if(!current)return;
-    pause();editing=id;selected=id;applyOptions(current.options);switchView('text');
+    if(current.type==='clock'){
+      pause();cancelEdit();editing=id;selected=id;window.MatrixClock.applyOptions(current.options);switchView('clock');
+      $('clock-scene-edit-label').textContent=`Bearbeite Uhrszene: ${current.name}`;$('clock-scene-edit-banner').hidden=false;$('clock-add-scene').textContent='Uhrszene in Timeline aktualisieren ✓';return;
+    }
+    pause();cancelEdit();editing=id;selected=id;applyOptions(current.options);switchView('text');
     $('scene-edit-label').textContent=`Bearbeite Szene: ${current.name}`;$('scene-edit-banner').hidden=false;$('add-scene').textContent='Szene in Timeline aktualisieren ✓';
   }
   function newScene() {cancelEdit();applyOptions({text:'',mode:'auto',size:14,size2:12,split_sizes:false,align:'center',color:'red',speed:10,duration:5,effect:'direct',logo_id:null,logo_position:'left',logo_width:32,logo_style:'original'});switchView('text');$('message').focus();}
   $('add-scene').addEventListener('click',()=>{
     if(!previewValid||previewPending)return;
-    const opt=clone(textOptions());let id=editing;
+    const opt=clone(textOptions());let id=project.scenes.some(s=>s.id===editing&&s.type!=='clock')?editing:null;
     if(!id&&project.scenes.length>=30){toast('Maximal 30 Szenen pro Timeline.',true);return;}
     if(!id)id=uid();
     cache.set(id,{pages:previews.slice(),options:opt,effective_mode:measuredLayout?.effective_mode,preview_seconds:previews.length*opt.duration});
-    const existed=Boolean(editing);
-    commit(()=>{const found=project.scenes.find(s=>s.id===id);if(found)found.options=opt;else project.scenes.push({id,name:opt.text.split('\n')[0].slice(0,50)||'Logo',options:opt});selected=id;time=startOf(id);});
+    const existed=project.scenes.some(s=>s.id===id);
+    commit(()=>{const found=project.scenes.find(s=>s.id===id);if(found)found.options=opt;else project.scenes.push({id,name:opt.text.split('\n')[0].slice(0,50)||'Logo',type:'text',options:opt});selected=id;time=startOf(id);});
     cancelEdit();switchView('studio');toast(existed?'Szene aktualisiert.':'Szene zur Timeline hinzugefügt.');
   });
   $('cancel-scene-edit').addEventListener('click',cancelEdit);
@@ -217,6 +222,26 @@
     $('studio-load').disabled=$('studio-delete-project').disabled=!$('studio-project-select').value;
     $('studio-send').disabled=!ready||!project.scenes.length||['queued','running'].includes(value.job.state);
   }
-  window.MatrixStudio={onState};
+  async function addClock(options){
+    const current=project.scenes.find(s=>s.id===editing&&s.type==='clock');
+    if(!current&&project.scenes.length>=30)throw Error('Maximal 30 Szenen pro Timeline.');
+    const duration=Number(options.duration);
+    if(!Number.isInteger(duration)||duration<2||duration>30)throw Error('Uhrszene: 2 bis 30 Sekunden.');
+    const result=await api('/api/clock/preview',options),opt={...result.options,duration};
+    const id=current?.id||uid();
+    cache.set(id,{pages:[result.image],options:opt,effective_mode:'clock',preview_seconds:duration});
+    commit(()=>{if(current)current.options=opt;else project.scenes.push({id,name:'Uhr · '+$('clock-style').selectedOptions[0].textContent,type:'clock',options:opt});selected=id;time=startOf(id);});
+    cancelEdit();switchView('studio');toast(current?'Uhrszene aktualisiert.':'Uhrszene zur Timeline hinzugefügt.');
+  }
+  document.querySelectorAll('[data-studio-clock]').forEach(button=>button.addEventListener('click',()=>{cancelEdit();window.MatrixClock.applyOptions({...serverState?.clock,duration:5});switchView('clock');}));
+  $('clock-cancel-scene-edit').addEventListener('click',cancelEdit);
+  setInterval(async()=>{
+    if(view!=='studio'||!ready)return;
+    const part=segments().find(p=>time<p.end)||segments().at(-1);
+    if(part?.scene.type!=='clock')return;
+    const revision=version,id=part.scene.id;
+    try{const result=await api('/api/clock/preview',part.scene.options);if(version!==revision)return;const detail=cache.get(id);if(detail){detail.pages=[result.image];monitor();}}catch(_){/* validation errors remain in the timeline preview */}
+  },1000);
+  window.MatrixStudio={onState,addClock};
   render();persist();schedulePreview();if(state)onState(state);
 })();

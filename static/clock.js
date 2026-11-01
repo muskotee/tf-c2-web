@@ -30,6 +30,10 @@
   document.querySelectorAll('[data-clock-style]').forEach(button=>button.addEventListener('click',()=>{$('clock-style').value=button.dataset.clockStyle;changed();}));
   $('clock-form').addEventListener('submit',async event=>{event.preventDefault();busy=true;try{await api('/api/clock/start',value());dirty=false;await poll();}catch(error){toast(error.message,true);}finally{busy=false;}});
   $('clock-stop').addEventListener('click',()=>job('/api/clock/stop'));
+  $('clock-add-scene').addEventListener('click',async()=>{
+    $('clock-add-scene').disabled=true;
+    try{await window.MatrixStudio.addClock({...value(),duration:Number($('clock-scene-duration').value)});}catch(error){toast(error.message,true);}finally{$('clock-add-scene').disabled=false;}
+  });
   $('clock-upload-button').addEventListener('click',()=>$('clock-upload').click());
   $('clock-upload').addEventListener('change',async()=>{
     const file=$('clock-upload').files[0];if(!file)return;
@@ -41,7 +45,15 @@
       await poll();$('clock-logo').value=logo.id;changed();toast('Logo gespeichert. Zum Anzeigen die Uhrgestaltung übernehmen.');
     }catch(error){toast(error.message,true);}finally{busy=false;$('clock-upload').value='';$('clock-upload-button').textContent='Logo hochladen';await poll();}
   });
-  window.MatrixClock={onState(next){
+  window.MatrixClock={applyOptions(opt){
+    if(!filled&&state)window.MatrixClock.onState(state);
+    if(opt.logo_id&&!Array.from($('clock-logo').options).some(o=>o.value===opt.logo_id)){
+      const option=node('option','','Logo dieser Szene');option.value=opt.logo_id;$('clock-logo').append(option);
+    }
+    for(const [key,id] of Object.entries({style:'clock-style',content:'clock-content',color:'clock-color',accent:'clock-accent',timezone:'clock-timezone',second_timezone:'clock-second',date_format:'clock-date-format',logo_position:'clock-logo-position'}))if(opt[key]!==undefined)$(id).value=opt[key];
+    $('clock-logo').value=opt.logo_id||'';$('clock-scene-duration').value=opt.duration||5;
+    $('clock-logo-panel').open=Boolean(opt.logo_id);filled=true;changed();
+  },onState(next){
     const stored=next.clock;if(!stored)return;
     const images=next.logos||[],key=JSON.stringify(images.map(im=>[im.id,im.name]));
     if(key!==logoList){
@@ -58,7 +70,7 @@
     const running=['queued','running'].includes(next.job.state);
     $('clock-start').disabled=running||busy;
     $('clock-stop').disabled=running||!opt.enabled;
-    $('clock-badge').textContent=opt.enabled?'AKTIV':'PAUSIERT';
+    $('clock-badge').textContent=opt.enabled?'AKTIV':next.timeline_clock?.enabled?'IN TIMELINE':'PAUSIERT';
     $('clock-start').textContent=opt.enabled?'Uhrgestaltung übernehmen ↗':'Uhr am Display starten ↗';
     $('clock-sync').textContent=opt.enabled?(opt.synced?'Letzter Zeitabgleich: '+date(opt.synced):'Zeitabgleich läuft …'):'Die Uhr ist nicht als aktuelle Anzeige aktiv.';
     if(next.last?.source==='clock'){$('last-title').textContent='Uhr & Datum';$('last-text').textContent=descriptions[next.last.clock?.style||'digital'];$('source-chip').textContent='UHR';}

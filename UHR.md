@@ -33,6 +33,23 @@ Wahl. Datum: Tag.Monat.Jahr, ISO oder ISO mit kurzem Jahr. Die Bahnhofsuhr zeigt
 Uhrzeit plus Datum, die Weltzeitansicht nur Uhrzeiten. Ziffernfarbe lässt sich wählen; Tafelrahmen
 und analoge Uhr bieten zusätzlich eine Akzentfarbe.
 
+## Uhr als Szene in einer Timeline
+
+Die Uhr gestalten und **Als Uhrszene zur Timeline hinzufügen** wählen. Alternativ
+im Szenenstudio **Uhrszene ＋** anklicken. Darstellung, Farben, Datum, Zeitzonen
+und Logo werden mit der Szene gespeichert. Die Anzeigedauer ist für jede Uhrszene
+von 2 bis 30 Sekunden einstellbar. Drag-and-drop, Bearbeiten, Duplizieren und
+Rückgängig funktionieren wie bei Textszenen; Bearbeiten öffnet die Uhransicht.
+
+Der Controller spielt die gesamte gemischte Folge selbstständig ab. Uhrsekunden
+laufen während der Szene nativ weiter. Jede Szene verwendet ihre eigene
+Fensteraufteilung. Eine neue Übertragung pro Szenenwechsel ist nicht nötig.
+Der Raspberry gleicht die gemeinsame Controllerzeit einmal pro Minute ab;
+unterschiedliche Zeitzonen werden in den einzelnen Uhrszenen berücksichtigt.
+Beim lokalen Tageswechsel oder verändertem Sommerzeitversatz wird die Folge neu
+übertragen, um Datumsbilder und Versätze zu aktualisieren. Dadurch beginnt die
+Folge bei dieser gelegentlichen Aktualisierung wieder bei der ersten Szene.
+
 ## Logo und Datumsdarstellung
 
 Unter **Logo bei der Uhr** ein vorhandenes Bild wählen oder ein neues hochladen.
@@ -72,6 +89,6 @@ RTC-Versorgung verlieren; nach dem Start wird sie erneut abgeglichen.
 
 Uhrstart pausiert RSS. Eine manuelle Text-/Timeline-Sendung oder das Aktivieren von
 RSS beendet den Uhrmodus. Helligkeitsänderungen lassen die Uhr weiterlaufen.
-Die Uhr ist eine eigene Anzeigequelle und derzeit keine Szenenart innerhalb der
-Timeline. Native Schrift- und Zeigerdarstellung kann sich geringfügig von der
+Die Uhr lässt sich einzeln oder als Szenentyp innerhalb einer Timeline verwenden.
+Native Schrift- und Zeigerdarstellung kann sich geringfügig von der
 Webvorschau unterscheiden.

@@ -1,5 +1,15 @@
 # Native Uhrvorlagen
 
+`playlist-single.bin`, `playlist-two.bin` und `playlist-three.bin` sind zusätzliche
+PowerLED-Referenzen mit festgelegten Laufzeiten 5/7/9 Sekunden. `programs.merge`
+reproduziert die Zwei- und Drei-Programm-Dateien bytegenau aus der Einzelreferenz.
+Der globale Kopf ist 128 Byte groß; Anzahl bei +120, Verzeichnisprüfbytes bei
++125/+127, danach je Programm ein absoluter 32-Bit-Zeiger. Ein Programmkopf ist
+444 Byte groß; die Fenstertabelle beginnt relativ bei +216. Alle Fenster- und
+Seitenverkettungszeiger werden beim Zusammenstellen neu adressiert. Native Uhren
+verwenden eine feste Programmlaufzeit; Textprogramme spielen ihre Seiten einmal
+vollständig ab. Es erfolgt keine neue Übertragung bei jedem Szenenwechsel.
+
 **Kompatibilitätsbefund vom Display:** Die unveränderte PowerLED-Standarduhr mit
 eingebauter Schrift ist sichtbar und läuft. Schon die unveränderte Vorlage mit
 angehängter benutzerdefinierter Schrift bleibt schwarz. Die erfolgreiche
