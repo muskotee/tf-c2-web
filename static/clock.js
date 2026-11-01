@@ -1,14 +1,17 @@
 'use strict';
 (() => {
-  let filled=false, dirty=false, busy=false, request=0, timer, pending=false;
+  let filled=false, dirty=false, busy=false, request=0, timer, pending=false, logoList='';
   const descriptions={digital:'Klassische Uhr mit Sekunden. Eingebaute Uhrschrift, optional mit Datum.',segment:'Digitale Ziffern und eine gerahmte Tafel – inspiriert von Börsen- und Anzeigetafeln.',binary:'BCD: Jede Dezimalziffer erhält eine Punktspalte. Von oben nach unten zählen die Zeilen 8, 4, 2 und 1. Gefüllte Punkte addieren; hohle Punkte sind aus.',arcade:'Pac-Man-Ziffern: Über jeder Ziffer frisst sich ein kleiner Held durch eine Punktleiste. Die Einer der Sekunden beginnen alle zehn Sekunden von vorn.',analog:'Analoge Uhr mit roten Stunden-, Minuten- und Sekundenzeigern. Daneben stehen die Uhrzeit und darunter das aktuelle Datum.',world:'Zwei Uhren nebeneinander. Die Städte und Zeitzonen wählst du selbst.'};
-  function value(){return {style:$('clock-style').value,content:$('clock-content').value,color:$('clock-color').value,accent:$('clock-accent').value,timezone:$('clock-timezone').value,second_timezone:$('clock-second').value,date_format:$('clock-date-format').value};}
+  function value(){return {style:$('clock-style').value,content:$('clock-content').value,color:$('clock-color').value,accent:$('clock-accent').value,timezone:$('clock-timezone').value,second_timezone:$('clock-second').value,date_format:$('clock-date-format').value,logo_id:$('clock-style').value==='world'?null:($('clock-logo').value||null),logo_position:$('clock-logo-position').value};}
   function controls(){
     const opt=value(),special=['analog','world'].includes(opt.style);
     $('clock-content').disabled=special;
     if(special)$('clock-content').value=opt.style==='analog'?'both':'time';
     $('clock-date-format').disabled=opt.style==='world'||$('clock-content').value==='time';
     $('clock-second-field').hidden=opt.style!=='world';
+    $('clock-logo').disabled=opt.style==='world';
+    $('clock-upload-button').disabled=opt.style==='world';
+    $('clock-logo-position').disabled=opt.style==='world'||!$('clock-logo').value;
     $('clock-accent').disabled=!['segment','analog'].includes(opt.style);
     $('clock-description').textContent=descriptions[opt.style];
     document.querySelectorAll('[data-clock-style]').forEach(button=>{const selected=button.dataset.clockStyle===opt.style;button.classList.toggle('selected',selected);button.setAttribute('aria-pressed',String(selected));});
@@ -27,13 +30,31 @@
   document.querySelectorAll('[data-clock-style]').forEach(button=>button.addEventListener('click',()=>{$('clock-style').value=button.dataset.clockStyle;changed();}));
   $('clock-form').addEventListener('submit',async event=>{event.preventDefault();busy=true;try{await api('/api/clock/start',value());dirty=false;await poll();}catch(error){toast(error.message,true);}finally{busy=false;}});
   $('clock-stop').addEventListener('click',()=>job('/api/clock/stop'));
+  $('clock-upload-button').addEventListener('click',()=>$('clock-upload').click());
+  $('clock-upload').addEventListener('change',async()=>{
+    const file=$('clock-upload').files[0];if(!file)return;
+    if(file.size>2*1024*1024){toast('Das Bild darf höchstens 2 MB groß sein.',true);$('clock-upload').value='';return;}
+    busy=true;$('clock-start').disabled=true;$('clock-upload-button').textContent='Bild wird geladen …';
+    try{
+      const data=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]);reader.onerror=()=>reject(new Error('Datei konnte nicht gelesen werden.'));reader.readAsDataURL(file);});
+      const logo=await api('/api/logo/upload',{name:file.name,data});
+      await poll();$('clock-logo').value=logo.id;changed();toast('Logo gespeichert. Zum Anzeigen die Uhrgestaltung übernehmen.');
+    }catch(error){toast(error.message,true);}finally{busy=false;$('clock-upload').value='';$('clock-upload-button').textContent='Logo hochladen';await poll();}
+  });
   window.MatrixClock={onState(next){
     const stored=next.clock;if(!stored)return;
+    const images=next.logos||[],key=JSON.stringify(images.map(im=>[im.id,im.name]));
+    if(key!==logoList){
+      const selected=filled?$('clock-logo').value:(stored.logo_id||'');logoList=key;
+      const empty=node('option','','Kein Logo');empty.value='';$('clock-logo').replaceChildren(empty);
+      for(const image of images){const option=node('option','',image.name);option.value=image.id;$('clock-logo').append(option);}
+      $('clock-logo').value=selected;
+    }
     const supported=next.clock_supported_styles||['digital','segment','analog','world'];
     const opt={...stored,style:supported.includes(stored.style)?stored.style:'digital'};
     for(const option of $('clock-style').options)option.disabled=!supported.includes(option.value);
     document.querySelectorAll('[data-clock-style]').forEach(button=>{button.disabled=!supported.includes(button.dataset.clockStyle);});
-    if(!filled){for(const [key,id] of Object.entries({style:'clock-style',content:'clock-content',color:'clock-color',accent:'clock-accent',timezone:'clock-timezone',second_timezone:'clock-second',date_format:'clock-date-format'}))if(opt[key])$(id).value=opt[key];filled=true;controls();}
+    if(!filled){for(const [key,id] of Object.entries({style:'clock-style',content:'clock-content',color:'clock-color',accent:'clock-accent',timezone:'clock-timezone',second_timezone:'clock-second',date_format:'clock-date-format',logo_position:'clock-logo-position'}))if(opt[key])$(id).value=opt[key];filled=true;if(opt.logo_id)$('clock-logo-panel').open=true;controls();}
     const running=['queued','running'].includes(next.job.state);
     $('clock-start').disabled=running||busy;
     $('clock-stop').disabled=running||!opt.enabled;

@@ -1,5 +1,19 @@
 # Versionshinweise
 
+## 1.2.0 — 2026-11-01
+
+Logoauswahl und Upload direkt in der Uhransicht. Ein eigener 32×32-Bereich links
+oder rechts neben Uhrzeit/Datum hält Bilder und native Zeiger getrennt. Dieselbe
+persistente Logo-Bibliothek wird auch von Textanzeigen verwendet. Die Weltzeituhr
+bleibt ohne Logo, da beide Displayhälften benötigt werden.
+
+Datumsformate werden auf diesem Controller nicht zuverlässig nativ umgesetzt;
+das Datum wird deshalb selbst gerendert und beim nächsten Zeitabgleich nach dem
+lokalen Tageswechsel neu übertragen. Es gibt keine sekündlichen Programmuploads.
+Datum unter der Uhrzeit nutzt eine feste LED-Pixelschrift mit sechs Pixeln
+Zeichenbreite und sieben sichtbaren Zeilen. Vertikal getrennte Bereiche verbessern
+die Zentrierung. Alleinstehendes Datum darf größer sein. 51 Tests insgesamt.
+
 ## 1.1.2 — 2026-11-01
 
 Bahnhofsuhr: Die nativen roten Zeigerparameter bleiben unverändert. Die vorherige

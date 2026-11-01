@@ -12,8 +12,12 @@ angehängter Schriften muss zusätzlich der Schriftverweis bei Offset 72 auf nul
 gesetzt werden; ein verbleibender Verweis zeigt hinter das verkürzte Programm.
 
 Die Bahnhofsuhr wird für die eingebaute Schrift neu aufgebaut: Zifferblatt
-32×32 bei (0,0), Uhrzeitfenster 96×16 bei (32,0), Datumsfenster 96×16 bei (32,16).
-Die 48 Pixel breite Uhrzeit beginnt relativ bei x=24, das deutsche Datum bei x=18.
+32×32 bei (0,0), Uhrzeitfenster 96×12 bei (32,4), Datumsfenster 96×10 bei (32,19).
+Die 48 Pixel breite Uhrzeit beginnt relativ bei x=24. Das Datum ist ein eigener
+Rasterbereich mit einer festen 6-Pixel-Zeichenbreite; die nicht zuverlässig
+umgesetzte native Datumsformat-Auswahl wird nicht mehr für die Ausgabe verwendet.
+Mit Logo wird ein zusätzlicher 32×32-Rasterbereich links oder rechts neben dem
+Text reserviert; der Textbereich der Bahnhofsuhr ist dann 64 Pixel breit.
 Dadurch sind die Fenster auf 32 Pixel ausgerichtet, überlappen sich nicht und
 die beiden Zeilen liegen mittig im rechten Bereich. Die Zeigerparameter bleiben
 bytegenau auf den unveränderten roten Standardwerten: Änderungen führten am

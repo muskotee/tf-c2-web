@@ -33,14 +33,34 @@ Wahl. Datum: Tag.Monat.Jahr, ISO oder ISO mit kurzem Jahr. Die Bahnhofsuhr zeigt
 Uhrzeit plus Datum, die Weltzeitansicht nur Uhrzeiten. Ziffernfarbe lässt sich wählen; Tafelrahmen
 und analoge Uhr bieten zusätzlich eine Akzentfarbe.
 
+## Logo und Datumsdarstellung
+
+Unter **Logo bei der Uhr** ein vorhandenes Bild wählen oder ein neues hochladen.
+Die Logo-Bibliothek ist dieselbe wie bei Textanzeigen. Links oder rechts neben der
+Uhrzeit sind möglich. Ein Logo erhält einen eigenen 32×32-Pixel-Bereich und wird
+proportional eingepasst. Bei der Bahnhofsuhr bleibt das Zifferblatt ganz links;
+„Logo links“ bedeutet links neben Uhrzeit und Datum. Die zwei Weltzeituhren
+belegen das gesamte Display; dort ist kein zusätzlicher Logo-Bereich verfügbar.
+
+Die Firmware stellte trotz angewähltem Tag.Monat.Jahr weiterhin Jahr-Monat-Tag
+dar. Deshalb wird das Datum jetzt auf dem Raspberry als fertiges Pixelbild
+gerendert. Das gewählte Format erscheint damit tatsächlich als `01.11.2026`,
+`2026-11-01` oder `26-11-01`. Unter der Uhrzeit verwendet das Datum eine feste
+6-Pixel-Zeichenbreite mit sieben sichtbaren Pixelzeilen und einfachen LED-Strichen.
+Datum allein wird größer dargestellt. Uhrzeit und Datum haben getrennte, vertikal
+platzierte Bereiche; Datum und Logos entsprechen pixelgenau der Webvorschau.
+
 ## Zeitquelle und Betrieb
 
 Die native Controlleruhr erzeugt die laufenden Sekunden. Der Browser muss nicht
 geöffnet bleiben. Der Raspberry gleicht die Uhr beim Start und danach einmal pro
 Minute ab. Pro Abgleich wird nur das kurze RTC-Kommando gesendet, kein neues
-Anzeigeprogramm. Lediglich ein neuer Stil oder ein veränderter Weltzeitversatz
-erfordert eine Programmübertragung. Unterbrechungen der Raspberry-Verbindung
-stoppen die native Uhr nicht; ihr nächster Zeitabgleich erfolgt nach Wiederverbindung.
+Anzeigeprogramm. Ein neuer Stil, ein veränderter Weltzeitversatz oder ein neuer
+lokaler Kalendertag erfordert eine Programmübertragung. Das Datum wird beim
+nächsten minütlichen Abgleich nach dem Tageswechsel neu gerendert. Unterbrechungen
+der Raspberry-Verbindung stoppen die native Uhr nicht; ihr nächster Zeitabgleich
+erfolgt nach Wiederverbindung. Ohne Raspberry bleibt das Datumsbild bis zum
+nächsten erfolgreichen Abgleich auf seinem zuletzt übertragenen Tag stehen.
 
 Zeitzonen: Berlin, London, UTC, New York und Tokio. Der Raspberry berechnet Sommer-
 und Winterzeit aus seiner Zeitzonendatenbank. Unterschiedliche Umstellungstermine

@@ -81,7 +81,7 @@ class Controller:
         self.stopping = threading.Event()
         clock = setting('clock', {})
         migrate_clock = None
-        if clock.get('enabled') and (clock.get('engine') != 2 or (clock.get('style') == 'analog' and clock.get('station_layout') != 2)):
+        if clock.get('enabled') and clock.get('engine') != 3:
             migrate_clock = clocks.options({**clock, 'style': clock.get('style') if clock.get('style') in clocks.SUPPORTED_STYLES else 'digital'})
             save_setting('clock', {**clock, 'enabled': False})
         threading.Thread(target=self.worker, daemon=True).start()
@@ -210,6 +210,7 @@ class Controller:
 
     def clock_job(self, kind, value):
         opt = clocks.options(setting('clock', {}) if kind == 'clock_sync' else value)
+        rendered_day = setting('clock', {}).get('date_day')
         if kind == 'clock_stop':
             previous = setting('clock_previous') or {}
             last = previous.get('last')
@@ -228,7 +229,9 @@ class Controller:
             previous = setting('clock', {})
             if not previous.get('enabled') and (setting('last') or {}).get('source') != 'clock':
                 save_setting('clock_previous', {'last': setting('last'), 'auto': setting('auto', DEFAULT_AUTO)})
-            program, opt = clocks.compile_program(opt)
+            instant = datetime.datetime.now(datetime.timezone.utc)
+            rendered_day = clocks.now(opt, instant).date().isoformat()
+            program, opt = clocks.compile_program(opt, instant)
             with self.hardware_lock:
                 result = display.upload_program(program, {'pages': len(clocks.windows(program)), 'bytes': len(program),
                     'options': {'text': clocks.STYLES[opt['style']], 'logo_id': None}},
@@ -241,20 +244,29 @@ class Controller:
                 self.update(state='done',progress=100,message='Uhr ist nicht aktiv.')
                 return
             with self.hardware_lock:
+                rebuild = opt['content'] in ('both','date') and rendered_day != clocks.now(opt).date().isoformat()
                 if opt['style'] == 'world':
                     program, _ = clocks.compile_program(opt)
                     delta = int.from_bytes(program[clocks.windows(program)[1][1]+18:clocks.windows(program)[1][1]+20], 'little', signed=True)
-                    if setting('clock', {}).get('world_offset') != delta:
-                        display.upload_program(program, {'pages': 2, 'bytes': len(program), 'options': {'text': 'Weltzeit'}})
+                    rebuild = setting('clock', {}).get('world_offset') != delta
+                if rebuild:
+                    instant = datetime.datetime.now(datetime.timezone.utc)
+                    rendered_day = clocks.now(opt, instant).date().isoformat()
+                    program, _ = clocks.compile_program(opt, instant)
+                    result = display.upload_program(program, {'pages': len(clocks.windows(program)), 'bytes': len(program),
+                        'options': {'text': clocks.STYLES[opt['style']], 'logo_id': opt['logo_id']}})
+                    save_setting('last', {**result, 'source': 'clock', 'sent': time.time(), 'clock': opt})
                 info = clocks.sync(opt)
         extra = {}
         if opt['style'] == 'analog':
-            extra['station_layout'] = 2
+            extra['station_layout'] = 3
+        if opt['content'] in ('both','date'):
+            extra['date_day'] = rendered_day
         if opt['style'] == 'world':
             program, _ = clocks.compile_program(opt)
             page = clocks.windows(program)[1][1]
             extra['world_offset'] = int.from_bytes(program[page+18:page+20], 'little', signed=True)
-        save_setting('clock', {**opt, **extra, 'enabled': True, 'engine': 2, 'synced': time.time()})
+        save_setting('clock', {**opt, **extra, 'enabled': True, 'engine': 3, 'synced': time.time()})
         with self.lock:
             self.device = {**info, 'checked': time.time(), 'checking': False}
         self.update(state='done', progress=100, message='Uhrprogramm und Zeitabgleich vom Controller bestätigt.')

@@ -10,6 +10,7 @@ import struct
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from PIL import Image, ImageDraw, ImageFont
 import display
+import logos
 
 ROOT = Path(__file__).resolve().parent / 'clock-templates'
 STYLES = {'digital': 'Digital · klassisch', 'segment': 'Börsentafel · gerahmt',
@@ -20,7 +21,8 @@ ZONES = {'Europe/Berlin': 'Berlin', 'Europe/London': 'London', 'UTC': 'UTC',
          'America/New_York': 'New York', 'Asia/Tokyo': 'Tokio'}
 DEFAULT = {'enabled': False, 'style': 'digital', 'content': 'both',
            'color': 'cyan', 'accent': 'amber', 'timezone': 'Europe/Berlin',
-           'second_timezone': 'America/New_York', 'date_format': 'de'}
+           'second_timezone': 'America/New_York', 'date_format': 'de',
+           'logo_id': None, 'logo_position': 'left'}
 
 
 def options(value):
@@ -41,6 +43,13 @@ def options(value):
         except ZoneInfoNotFoundError as exc:
             raise ValueError('Zeitzonendaten fehlen auf dem Raspberry.') from exc
     opt['enabled'] = bool(opt['enabled'])
+    opt['logo_id'] = opt['logo_id'] or None
+    if opt['logo_position'] not in ('left','right'):
+        raise ValueError('Bitte Logo links oder rechts wählen.')
+    if opt['logo_id']:
+        logos.image_path(opt['logo_id'])
+        if opt['style']=='world':
+            raise ValueError('Die Weltzeituhr benötigt beide Displayhälften. Bitte für ein Logo eine andere Uhrdarstellung wählen.')
     if opt['style'] == 'analog':
         opt['content'] = 'both'
     if opt['style'] == 'world':
@@ -173,27 +182,91 @@ def pack_raster(image):
     return data
 
 
-def station_program():
-    """Separate byte-aligned, non-overlapping native clock viewports.
+def centered_text(text, width, height, color, max_font=24):
+    image=Image.new('RGB',(width,height));draw=ImageDraw.Draw(image)
+    for size in range(min(max_font,height+2),7,-1):
+        font=ImageFont.truetype(display.FONT,size)
+        box=font.getbbox(text)
+        if font.getlength(text)<=width-2 and box[3]-box[1]<=height:
+            break
+    # Center the pixels actually emitted, not the font's line box.
+    mask=Image.new('L',(width,height+8));md=ImageDraw.Draw(mask)
+    md.text((max(0,(width-font.getlength(text))//2),-box[1]),text,font=font,fill=255)
+    mask=mask.point(lambda v:255 if v>=96 else 0)
+    bounds=mask.getbbox()
+    if bounds:
+        cropped=mask.crop((0,bounds[1],width,bounds[3]))
+        top=(height-cropped.height)//2
+        image.paste(color,(0,top,width,top+cropped.height),cropped)
+    return image
 
-    The captured custom-font layout used x=36 / width=72 for its second
-    window. Rebuild it for the ROM font: 32px dial plus a 96px digital area.
-    Time and date get independent 16px-high viewports, in that order.
+
+def matrix_date(text, width, height, color):
+    """Single-pixel LED digits on the native clock's 6px character pitch."""
+    glyphs={
+        '0':('01110','10001','10011','10101','11001','10001','01110'),
+        '1':('00100','01100','00100','00100','00100','00100','01110'),
+        '2':('01110','10001','00001','00010','00100','01000','11111'),
+        '3':('11110','00001','00001','01110','00001','00001','11110'),
+        '4':('00010','00110','01010','10010','11111','00010','00010'),
+        '5':('11111','10000','10000','11110','00001','00001','11110'),
+        '6':('01110','10000','10000','11110','10001','10001','01110'),
+        '7':('11111','00001','00010','00100','01000','01000','01000'),
+        '8':('01110','10001','10001','01110','10001','10001','01110'),
+        '9':('01110','10001','10001','01111','00001','00001','01110'),
+        '.':('00000',)*6+('00100',),
+        '-':('00000',)*3+('01110',)+('00000',)*3}
+    image=Image.new('RGB',(width,height));draw=ImageDraw.Draw(image)
+    left=(width-len(text)*6+1)//2;top=(height-7)//2
+    for index,char in enumerate(text):
+        for y,row in enumerate(glyphs[char]):
+            for x,pixel in enumerate(row):
+                if pixel=='1':draw.point((left+index*6+x,top+y),fill=color)
+    return image
+
+
+def composed_program(opt, instant=None):
+    """Native ticking time, exact raster date, optional static logo.
+
+    Date raster is rebuilt only when its local calendar day changes.
+    All horizontal viewports remain aligned to the native 32px stride.
     """
-    source=(ROOT/'analog.bin').read_bytes()
-    program=bytearray(source[:576])
+    standard=(ROOT/'standard.bin').read_bytes()
+    program=bytearray(standard[:576])
     struct.pack_into('<I',program,72,0)
     program[348:528]=bytes(180)
-    struct.pack_into('<IHHHH',program,348,576,0,0,32,32)
-    digital_page=576+24+32*32*3//8
-    date_page=digital_page+24+96*16*3//8
-    struct.pack_into('<IHHHH',program,360,digital_page,32,0,96,16)
-    struct.pack_into('<IHHHH',program,372,date_page,32,16,96,16)
-    program.extend(source[576:digital_page])
-    program.extend((ROOT/'standard.bin').read_bytes()[576:600])
-    program.extend(bytes(96*16*3//8))
-    program.extend((ROOT/'date.bin').read_bytes()[576:600])
-    program.extend(bytes(96*16*3//8))
+    items=[]
+    def raster_header():
+        header=bytearray(display.ROOT.joinpath('image-template.bin').read_bytes()[576:600])
+        struct.pack_into('<I',header,0,0);struct.pack_into('<H',header,4,800)
+        header[6:11]=bytes((1,2,0,1,10));struct.pack_into('<I',header,20,800)
+        return header
+    def add_image(x,y,image):items.append((x,y,*image.size,raster_header(),pack_raster(image)))
+    dial=32 if opt['style']=='analog' else 0
+    if dial:
+        source=(ROOT/'analog.bin').read_bytes()
+        items.append((0,0,32,32,bytearray(source[576:600]),source[600:984]))
+    main_width=128-dial-(32 if opt['logo_id'] else 0)
+    main_x=dial+(32 if opt['logo_id'] and opt['logo_position']=='left' else 0)
+    if opt['style']=='segment':
+        background=Image.new('RGB',(main_width,32));draw=ImageDraw.Draw(background)
+        draw.rectangle((0,0,main_width-1,31),outline=display.COLORS[opt['accent']])
+        add_image(main_x,0,background)
+    if opt['content'] in ('time','both'):
+        y=4 if opt['content']=='both' else 10
+        items.append((main_x,y,main_width,12,bytearray(standard[576:600]),bytes(main_width//8*12*3)))
+    if opt['content'] in ('date','both'):
+        y,height=(19,10) if opt['content']=='both' else (0,32)
+        render_date=matrix_date if opt['content']=='both' else centered_text
+        add_image(main_x,y,render_date(date_text(opt,now(opt,instant)),main_width,height,display.COLORS[opt['color']]))
+    if opt['logo_id']:
+        logo=logos.prepare({**opt,'logo_width':32,'logo_style':'original'},display.COLORS[opt['color']],32,32)
+        area=Image.new('RGB',(32,32));area.paste(logo,((32-logo.width)//2,(32-logo.height)//2),logo)
+        area=area.point(lambda v:255 if v>=96 else 0)
+        add_image(dial if opt['logo_position']=='left' else 96,0,area)
+    for index,(x,y,width,height,header,data) in enumerate(items):
+        struct.pack_into('<IHHHH',program,348+index*12,len(program),x,y,width,height)
+        program.extend(header);program.extend(data)
     return program
 
 
@@ -204,7 +277,10 @@ def compile_program(value, instant=None):
     # On this physical TF-C2 the unmodified captured custom-font program is
     # black, while the captured built-in font 0 clock is visible and ticking.
     # Use the proven ROM font and omit the unsupported appended font resource.
-    program=station_program() if kind=='analog' else program[:font_base(program)]
+    if kind!='world':
+        program=composed_program(opt,instant)
+    else:
+        program=program[:font_base(program)]
     struct.pack_into('<I', program, 72, 0)  # no appended font-resource directory
     for index,(_,page,x,y,w,h) in enumerate(windows(program)):
         if program[page+7]==11:
@@ -219,7 +295,7 @@ def compile_program(value, instant=None):
                 program[page+15]=(program[page+15]&0xf0)|{'de':11,'iso':1,'short':4}[opt['date_format']]
                 program[page+9]=max(0,(w-len(date_text(opt,now(opt,instant)))*6)//2)
             program[page+11]=max(0,(w-48)//2)
-        else:
+        elif program[page+7]==10:
             # Preserve the physically verified native hand parameters. Changing
             # them produced moving red streaks on this controller.
             image=unpack_raster(program,page,w,h)
@@ -230,11 +306,6 @@ def compile_program(value, instant=None):
             local=now(opt,instant);other=local.astimezone(ZoneInfo(opt['second_timezone']))
             delta=int((other.utcoffset()-local.utcoffset()).total_seconds()/60) if index else 0
             struct.pack_into('<h',program,page+18,delta)
-        if opt['style']=='segment':
-            image=unpack_raster(program,page,w,h);draw=ImageDraw.Draw(image)
-            draw.rectangle((0,0,w-1,h-1),outline=display.COLORS[opt['accent']])
-            for xx in range(3,w,4):draw.point((xx,h//2),fill=display.COLORS[opt['accent']])
-            data=pack_raster(image);program[page+24:page+24+len(data)]=data
     return bytes(program), opt
 
 
@@ -255,7 +326,7 @@ def preview(value, instant=None):
             d=ImageDraw.Draw(area);cx,cy=w//2,h//2
             for angle,length,color in ((local.hour%12*30+local.minute/2,8,'red'),(local.minute*6,12,'red'),(local.second*6,13,'red')):
                 radians=math.radians(angle-90);d.line((cx,cy,round(cx+math.cos(radians)*length),round(cy+math.sin(radians)*length)),fill=display.COLORS[color])
-        else:
+        elif program[page+7]==11:
             current=local.astimezone(ZoneInfo(opt['second_timezone'])) if opt['style']=='world' and index else local
             flags=program[page+8]&15
             strings=[]
